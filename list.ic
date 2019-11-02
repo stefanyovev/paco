@@ -1,0 +1,68 @@
+
+	#include <stdio.h>
+	#include <math.h>
+	#include "portaudio.h"
+
+	#ifdef WIN32
+		#include <windows.h>
+		#if PA_USE_ASIO
+			#include "pa_asio.h"
+		#endif
+	#endif
+
+	int main(void)
+
+		int     i, numDevices
+		const   PaDeviceInfo *deviceInfo
+		PaStreamParameters inputParameters, outputParameters
+		PaError err
+		char str1[100] = ""
+		char str2[100] = ""
+		
+		err = Pa_Initialize()
+		if( err != paNoError )
+			printf( "ERROR: Pa_Initialize returned 0x%x\n", err )
+			return 1
+
+		numDevices = Pa_GetDeviceCount()
+		if( numDevices < 0 )
+			printf( "ERROR: Pa_GetDeviceCount returned 0x%x\n", numDevices )
+			err = numDevices
+			return 1
+		
+		printf( "\n" )
+		
+		for( i=0; i<numDevices; i++ )
+		
+			deviceInfo = Pa_GetDeviceInfo( i )
+			sprintf( str1, "%d", deviceInfo->maxInputChannels )
+			sprintf( str2, "%d", deviceInfo->maxOutputChannels )
+			
+			printf(
+				" (%s%d)   %s %s   \"%s\" \"", i<10 ? " " : "",
+				i,
+				deviceInfo->maxInputChannels ? str1 : "-",
+				deviceInfo->maxOutputChannels ? str2 : "-",
+				Pa_GetHostApiInfo( deviceInfo->hostApi )->name )
+			
+			#ifdef WIN32
+			scope:
+				wchar_t wideName[MAX_PATH]
+				MultiByteToWideChar(CP_UTF8, 0, deviceInfo->name, -1, wideName, MAX_PATH-1)
+				wprintf( L"%s", wideName )
+			#else
+			scope:
+				printf( "%s", deviceInfo->name )
+			#endif
+			
+			printf( "\"\n" )
+
+		Pa_Terminate()
+
+		return 0
+
+		error:
+		Pa_Terminate()
+		fprintf( stderr, "Error number: %d\n", err )
+		fprintf( stderr, "Error message: %s\n", Pa_GetErrorText( err ) )
+		return err
