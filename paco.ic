@@ -1,0 +1,117 @@
+
+	#define title "PortAudio Console"
+	
+	#define usage "Usage: \"paco list\" or \"paco test API DEVICE\""
+
+	#include <stdio.h>
+	#include <string.h>
+	#include <math.h>
+	#include "portaudio.h"
+
+	#ifdef WIN32
+		#include <windows.h>
+		#if PA_USE_ASIO
+			#include "pa_asio.h"
+		#endif
+	#endif
+
+	PaError err	
+	int dev_count
+	
+	void list()
+		const PaDeviceInfo *dev_info
+		char s1[4], s2[4]
+		for( int i = 0; i < dev_count; i++ )		
+			dev_info = Pa_GetDeviceInfo( i )
+			sprintf( s1, "%d", dev_info->maxInputChannels )
+			sprintf( s2, "%d", dev_info->maxOutputChannels )
+			printf(
+				"  %s%d)   %s %s   \"%s\" \"", i<10 ? " " : "",
+				i,
+				dev_info->maxInputChannels ? s1 : "-",
+				dev_info->maxOutputChannels ? s2 : "-",
+				Pa_GetHostApiInfo( dev_info->hostApi )->name )
+			printf( "%s\"\n", dev_info->name )
+
+	int find( char* api_name, char* dev_name )
+		const PaHostApiInfo * api
+		const PaDeviceInfo * dev
+		for( int i=0; i <= dev_count; i++ )
+			if( i == dev_count )
+				return -1
+			dev = Pa_GetDeviceInfo( i )
+			api = Pa_GetHostApiInfo( dev->hostApi )
+			if( !strcmp( api->name, api_name ) && !strcmp( dev->name, dev_name ) )
+				return i
+
+	#define SR 48000
+	#define FR 1000
+	double t = 0.0
+	PaStreamCallbackResult proc(
+		const void *input,
+		void *output,
+		unsigned long frameCount,
+		const PaStreamCallbackTimeInfo *timeInfo,
+		PaStreamCallbackFlags statusFlags,
+		void *tt )
+		double * ttt =  (double *)tt;
+		float *out = (float*) output
+		for( int i=0; i<frameCount; i++ )
+			*out++ = (float) sin( FR * M_PI * (*ttt) * (*ttt) *2 ) /10.0
+			*out++ = (float) sin( FR * M_PI * (*ttt) * (*ttt+0.1) *2 ) /10.0
+			*ttt += 1.0/((double)SR)
+		return paContinue;
+
+	void test( int dev_id )
+		PaStreamParameters output
+		output.device = dev_id
+		output.channelCount = 2
+		output.sampleFormat = paFloat32
+		output.hostApiSpecificStreamInfo = 0
+		output.suggestedLatency = 0.01
+		PaStream *stream = NULL
+		err = Pa_OpenStream( &stream, NULL, &output, SR, paFramesPerBufferUnspecified, paClipOff, &proc, &t )
+		if( err != paNoError )
+			if( err == paUnanticipatedHostError )
+				const PaHostErrorInfo* herr = Pa_GetLastHostErrorInfo()
+				printf( "ERRORh: %s", herr->errorText )
+			else
+				printf( "ERROR: %s\n", Pa_GetErrorText( err ) )
+		err = Pa_StartStream( stream )
+		if( err != paNoError )
+			printf( "ERROR: %s\n", Pa_GetErrorText( err ) )
+		Pa_Sleep(1000)
+
+	int main( int argc, char* argv[] )
+
+		if( ( err = Pa_Initialize() ) != paNoError )
+			printf( "ERROR: Pa_Initialize returned %d\n", err )
+			return 1
+		
+		if( ( dev_count = Pa_GetDeviceCount() ) < 1 )
+			printf( "ERROR: Pa_GetDeviceCount returned %d\n", dev_count )
+			return 1
+		
+		printf( "%s\n", title )
+		
+		if( argc == 1 )
+			printf( usage )
+			return 1
+		
+		if( !strcmp( argv[1], "list" ) )
+			list()
+
+		else if( !strcmp( argv[1], "test" ) )
+			int dev_id = find( argv[2], argv[3] )
+			if( dev_id == -1 )
+				printf( "ERROR: Cannot find %s %s. Try These:\n", argv[2], argv[3] )				
+				list()
+			else
+				test( dev_id )
+		
+		else
+			printf( "ERROR: unknown parameter %s\n%s", argv[1], usage )
+			return 1
+
+		Pa_Terminate()
+		return 0
