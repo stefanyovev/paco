@@ -1,86 +1,284 @@
 
-	#include <stdio.h>
-	#include <string.h>
-	#include <math.h>
+	#define title "Portable Audio Console"
 	
 	#include <portaudio.h>
 
-	#define SR 48000
-	#define FR 1000
+	#define rate 48000
 
-	double t = 0.1
+	#include <stdio.h>
+	#include <stdlib.h>
+	#include <string.h>
+	
+	// -------------------------------------------------------------------------
+	// buffers
 
-	PaStreamCallbackResult proc(
-		const void *input,
-		void *output,
+	typedef struct buf
+		int size, host, nclients, *clients
+		float *bytes
+	buf
+	
+	buf* buf_new( int size )
+		buf* b = (buf*) malloc( sizeof( buf ) )
+		b->size = size
+		b->host = 1
+		b->nclients = 0
+		b->bytes = (float*) malloc( (size+2) * sizeof(float) )
+		memset( b->bytes, 0, size +2 )
+		return b
+	
+	int buf_new_client( buf* b )
+		int newval = b->host == 0 ? b->size+1 : b->host-1
+		if( b->nclients == 0 )
+			b->nclients = 1
+			b->clients = (int*) malloc( sizeof( int ) )
+			*b->clients = newval
+			return 0
+		else
+			b->nclients += 1
+			int* new_clients = (int*) malloc( sizeof( int ) * b->nclients )
+			memcpy( new_clients, b->clients, b->nclients-1 )
+			free( b->clients )
+			b->clients = new_clients
+			*( b->clients + b->nclients -1) = newval
+			return b->nclients -1
+	
+	int buf_min_client( buf* b )
+		if( b->nclients == 0 )
+			if( b->host == 0 )
+				return b->size +1
+			else
+				return b->host -1
+		if( b->nclients == 1 )
+			return b->clients[0]
+		int ret = b->clients[0]
+		for( int n=0; n<b->nclients; n++ )
+			if( ret < b->clients[n] )
+				ret = b->clients[n]
+		return ret
+
+	int buf_nused( buf* b, int client_id )
+		int host = b->host, client
+		if( client_id == -1 )
+			client = buf_min_client( b )
+		else
+			client = b->clients[client_id]
+		if( host > client )
+			return host-client-1
+		return b->size - (client-host-1)
+
+	int buf_nfree( buf* b )
+		return b->size - buf_nused( b, -1 )
+
+	int buf_put( buf* b, int count, float *src )
+		int avail = buf_nfree( b )
+		if( avail < 0 )
+			printf( "ERR1" )
+			return 0
+		if( count > avail )
+			printf( "drop %d/%d\n", count-avail, count )
+			return buf_put( b, avail, src )
+		int host = b->host, client = buf_min_client( b ), size = b->size
+		if( host + count == size +2 )
+			memcpy( b->bytes +host, src, count * sizeof(float) )
+			b->host = 0
+			return count
+		if( host + count < size +2 )
+			memcpy( b->bytes +host, src, count * sizeof(float) )
+			b->host += count
+			return count
+		if( host + count > size +2 )
+			int x = size - host +2
+			buf_put( b, x, src )
+			buf_put( b, count-x, src+x )
+			return count
+
+	int buf_get( buf* b, int client_id, int count, float *dst )
+		int avail = buf_nused( b, client_id )
+		if( count > avail )
+			printf( "unavail %d/%d\n", count-avail, count )
+			return buf_get( b, client_id, avail, dst )
+		int host = b->host, client = b->clients[client_id], size = b->size
+		if( client +count < size +1 )
+			memcpy( dst, b->bytes +client+1, count * sizeof(float) )
+			b->clients[client_id] += count+1
+			return count
+		if( client == size +1 )
+			memcpy( dst, b->bytes, count * sizeof(float) )
+			b->clients[client_id] = count
+			return count
+		if( client +count == size +1 )
+			memcpy( dst, b->bytes +client+1, count * sizeof(float) )
+			b->clients[client_id] = 0
+			return count
+		if( client +count > size +1 )
+			int x = size - client +1
+			memcpy( dst, b->bytes +client+1, x * sizeof(float) )
+			memcpy( dst+x, b->bytes, (count-x)*sizeof(float) )
+			b->clients[client_id] = count-x
+			return count
+
+	// -------------------------------------------------------------------------
+	// system
+	
+	typedef struct route
+		buf* buf
+		int client_id
+	route
+	
+	typedef struct dev
+		int id
+		int nbufs
+		buf* bufs
+		int nouts
+		route* outs
+		PaStream *rec, *play
+	dev
+	
+	int ndevs = 0
+	dev* devs = 0
+
+	PaStreamCallbackResult on_device_data(
+		const void **input,
+		void **output,
 		unsigned long frameCount,
 		const PaStreamCallbackTimeInfo *timeInfo,
 		PaStreamCallbackFlags statusFlags,
-		void *tt )
+		void *userData )
 		
-		double * ttt =  (double *)tt;
-		float *out = (float*) output
-    
-		for( int i=0; i<frameCount; i++ )
-			*out++ = (float) sin( FR * M_PI * (*ttt) * (*ttt) *2 )
-			*out++ = (float) sin( FR * M_PI * (*ttt) * (*ttt+0.1) *2 )
-			*ttt += 1.0/((double)SR)
+		dev* device = (dev*) userData
+		void **in = input
+
+		for( int i=0; i< device->nbufs; i++ )
+			buf_put( &(device->bufs[i]), frameCount, *(in+i) )
+		
+		return paContinue
+
+	PaStreamCallbackResult on_write_to_device(
+		const void **input,
+		void **output,
+		unsigned long frameCount,
+		const PaStreamCallbackTimeInfo *timeInfo,
+		PaStreamCallbackFlags statusFlags,
+		void *userData )
+
+		dev* device = (dev*) userData
+		
+		for( int i=0; i< device->nouts; i++ )
+			if( device->outs[i].buf )
+				buf_get( device->outs[i].buf, device->outs[i].client_id, frameCount, *(output+i) )
+
+		return paContinue
+		
+	int route_add( int src_dev, int src_chan, int dst_dev, int dst_chan )
+		devs[dst_dev].outs[dst_chan].client_id = buf_new_client( & devs[src_dev].bufs[src_chan] )
+		devs[dst_dev].outs[dst_chan].buf = & devs[src_dev].bufs[src_chan]
+		
+		if( !devs[src_dev].rec )
+			printf( "%d rec\n", src_dev )
+			static PaStreamParameters input
+			input.device = src_dev
+			input.channelCount = devs[src_dev].nbufs
+			input.sampleFormat = paFloat32|paNonInterleaved
+			input.hostApiSpecificStreamInfo = 0
+			input.suggestedLatency = 0.01
+			PaError err
+			err = Pa_OpenStream( &(devs[src_dev].rec), &input, NULL,  rate, paFramesPerBufferUnspecified, paClipOff, &on_device_data, &devs[src_dev] )
+			if( err != paNoError )
+				if( err == paUnanticipatedHostError )
+					const PaHostErrorInfo* herr = Pa_GetLastHostErrorInfo()
+					printf( "1ERRORh: %s", herr->errorText )
+				else
+					printf( "2ERROR: %s\n", Pa_GetErrorText( err ) )
+			err = Pa_StartStream( devs[src_dev].rec )
+			if( err != paNoError )
+				printf( "3ERROR: %s\n", Pa_GetErrorText( err ) )
+				
+		if( !devs[dst_dev].play )
+			printf( "%d play\n", dst_dev )
+			static PaStreamParameters output
+			output.device = dst_dev
+			output.channelCount = devs[dst_dev].nouts
+			output.sampleFormat = paFloat32|paNonInterleaved
+			output.hostApiSpecificStreamInfo = 0
+			output.suggestedLatency = 0.01
+			PaError err
+			err = Pa_OpenStream( &(devs[dst_dev].play), NULL, &output, rate, paFramesPerBufferUnspecified, paClipOff, &on_write_to_device, &devs[dst_dev] )
+			if( err != paNoError )
+				if( err == paUnanticipatedHostError )
+					const PaHostErrorInfo* herr = Pa_GetLastHostErrorInfo()
+					printf( "1ERRORh: %s", herr->errorText )
+				else
+					printf( "2ERROR: %s\n", Pa_GetErrorText( err ) )
+			err = Pa_StartStream( devs[dst_dev].play )
+			if( err != paNoError )
+				printf( "3ERROR: %s\n", Pa_GetErrorText( err ) )
+
+	int init()
 	
-		return paContinue;
-
-	int main( int argc, char* argv[] )
-
-		if( argc != 3 )
-			printf( "tell me 2 args: api and dev" )
-			return 1
-			
-		PaError err
-		
+		PaError err	
 		err = Pa_Initialize()
 		if( err != paNoError )
 			printf( "ERROR: Pa_Initialize returned 0x%x\n", err )
-			return 1
+			return 0
 
-		int dev_count = Pa_GetDeviceCount()
-		if( dev_count <= 0 )
+		int ndevs = Pa_GetDeviceCount()
+		if( ndevs <= 0 )
 			printf( "ERROR: dev count <= 0" )
-		
-		const PaHostApiInfo * api
-		const PaDeviceInfo * dev
-		int dev_id
-		
-		for( int i=0; i<=dev_count; i++ )
-			if( i == dev_count )
-				printf( "ERROR: %s %s Not Found\n", argv[1], argv[2] )
-				return 1
-			dev_id = i
-			dev = Pa_GetDeviceInfo( dev_id )
-			api = Pa_GetHostApiInfo( dev->hostApi )
-			if( !strcmp( api->name, argv[1] ) && !strcmp( dev->name, argv[2] ) )
-				printf( "Dev # %d\n", dev_id )
-				break
+			return 0
 
-		PaStreamParameters output
-		output.device = dev_id
-		output.channelCount = 2
-		output.sampleFormat = paFloat32
-		output.hostApiSpecificStreamInfo = 0
-		output.suggestedLatency = 0.01
+		devs = (dev*) malloc( sizeof( dev ) * ndevs )
 		
-		PaStream *stream = NULL
-		err = Pa_OpenStream( &stream, NULL, &output, SR, paFramesPerBufferUnspecified, paClipOff, &proc, &t )
-		if( err != paNoError )
-			if( err == paUnanticipatedHostError )
-				const PaHostErrorInfo* herr = Pa_GetLastHostErrorInfo()
-				printf( "ERRORh: %s", herr->errorText )
-			else
-				printf( "ERROR: %s\n", Pa_GetErrorText( err ) )
+		const PaDeviceInfo *dev_info		
+		char s1[4], s2[4]		
+		for( int i=0; i<ndevs; i++ )
 
-		err = Pa_StartStream( stream )
-		if( err != paNoError )
-			printf( "ERROR: %s\n", Pa_GetErrorText( err ) )
+			devs[i].id = i
+			devs[i].rec = 0
+			devs[i].play = 0
+			
+			dev_info = Pa_GetDeviceInfo( i )
+			
+			devs[i].nbufs = dev_info->maxInputChannels
+			devs[i].bufs = (buf*) malloc( sizeof( buf ) * devs[i].nbufs )
+			for( int j=0; j<devs[i].nbufs; j++ )
+				devs[i].bufs[j] = *buf_new( rate )
+				
+			devs[i].nouts = dev_info->maxOutputChannels
+			devs[i].outs = (route*) malloc( sizeof( route ) * devs[i].nouts )
+			for( int j=0; j<devs[i].nouts; j++ )
+				devs[i].outs[j].buf = 0
+			
+			sprintf( s1, "%d", devs[i].nbufs )
+			sprintf( s2, "%d", devs[i].nouts )
+			printf(
+				"  %s%d    %s %s    \"%s\" \"", i<10 ? " " : "", i,
+				devs[i].nbufs ? s1 : "-",
+				devs[i].nouts ? s2 : "-",
+				Pa_GetHostApiInfo( dev_info->hostApi )->name )
+			printf( "%s\"\n", dev_info->name )
 
-		Pa_Sleep(1000)
+
+	// -------------------------------------------------------------------------
+	// console
 		
-		Pa_Terminate()
-		return 0
+	int main( int agrc, char* argv)
+		
+		printf( "\n\t%s\n\n", title )
+		
+		if( !init() ) return 1
+		
+		printf( "\n\texamples:\n\t\t] 0.1 0.1\n\t\t] 22.7 1.1\n\t\t] 22.7 1.2\n\n\ttype 'q' to exit\n", title )
+		
+		char cmd[1000] = ""
+		int sd, sc, dd, dc
+		
+		while( 1 )
+
+			printf( "\t] " )
+			gets( cmd )
+
+			if( sscanf( cmd, "%d.%d %d.%d", &sd, &sc, &dd, &dc ) == 4 )
+				route_add( sd, sc, dd, dc )
+
+			else if( strcmp( cmd, "q" ) == 0 )
+				return 0
