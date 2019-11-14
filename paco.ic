@@ -14,7 +14,7 @@
 	// buffers
 
 	typedef struct buf
-		int size, host, nclients, *clients
+		int size, host, nclients, clients[10]
 		float *bytes
 	buf
 	
@@ -30,20 +30,12 @@
 		return b
 	
 	int buf_new_client( buf* b )
-		int newval = b->host == 0 ? b->size+1 : b->host-1
-		if( b->nclients == 0 )
-			b->nclients = 1
-			b->clients = (int*) malloc( sizeof( int ) )
-			*b->clients = newval
-			return 0
-		else
-			b->nclients += 1
-			int* new_clients = (int*) malloc( sizeof( int ) * b->nclients )
-			memcpy( new_clients, b->clients, b->nclients-1 )
-			free( b->clients )
-			b->clients = new_clients
-			*( b->clients + b->nclients -1) = newval
-			return b->nclients -1
+		int newid = b->nclients
+		int newval = ((b->host == 0) ? (b->size+1) : (b->host-1))
+		//printf( "new client %d @ %d (host %d)\n", b->nclients, newval, b->host )
+		b->clients[newid] = newval
+		b->nclients += 1
+		return newid
 	
 	int buf_min_client( buf* b )
 		if( b->nclients == 0 )
@@ -199,11 +191,11 @@
 		//	printf( " %.5f %d in %d displ: %.5f\n", timeInfo->currentTime, device->id, frameCount, timeInfo->inputBufferAdcTime )
 			
 		for( int i=0; i< device->nbufs; i++ )
+		
 			buf_put( &(device->bufs[i]), frameCount, *(in+i) )
-			//if( on == 2 )
-			//printf( "used %d\n", buf_nused( &(device->bufs[i]), -1 ) )
 		
 		return paContinue
+
 
 	PaStreamCallbackResult on_write_to_device(
 		const void **input,
@@ -213,6 +205,9 @@
 		PaStreamCallbackFlags statusFlags,
 		void *userData )
 
+		if( statusFlags & paPrimingOutput )
+			printf( "prming %d", frameCount )
+
 		dev* device = (dev*) userData
 
 		//if( on == 2 )
@@ -220,16 +215,15 @@
 		
 		for( int i=0; i< device->nouts; i++ )
 			if( device->outs[i].buf )
+			
 				buf_get( device->outs[i].buf, device->outs[i].client_id, frameCount, *(output+i) )
 
 		return paContinue
-		
+
+
 	int route_add( int src_dev, int src_chan, int dst_dev, int dst_chan )
-		devs[dst_dev].outs[dst_chan].client_id = buf_new_client( & devs[src_dev].bufs[src_chan] )
-		devs[dst_dev].outs[dst_chan].buf = & devs[src_dev].bufs[src_chan]
-		
+
 		if( !devs[src_dev].rec )
-			printf( "%d rec\n", src_dev )
 			static PaStreamParameters input
 			input.device = src_dev
 			input.channelCount = devs[src_dev].nbufs
@@ -247,9 +241,10 @@
 			err = Pa_StartStream( devs[src_dev].rec )
 			if( err != paNoError )
 				printf( "3ERROR: %s\n", Pa_GetErrorText( err ) )
+			else
+				printf( "%d rec\n", src_dev )
 				
 		if( !devs[dst_dev].play )
-			printf( "%d play\n", dst_dev )
 			static PaStreamParameters output
 			output.device = dst_dev
 			output.channelCount = devs[dst_dev].nouts
@@ -267,6 +262,27 @@
 			err = Pa_StartStream( devs[dst_dev].play )
 			if( err != paNoError )
 				printf( "3ERROR: %s\n", Pa_GetErrorText( err ) )
+			else
+				printf( "%d play\n", dst_dev )
+
+		devs[dst_dev].outs[dst_chan].client_id = buf_new_client( & devs[src_dev].bufs[src_chan] )
+		devs[dst_dev].outs[dst_chan].buf = & devs[src_dev].bufs[src_chan]
+
+
+	void list()
+		const PaDeviceInfo *dev_info		
+		char s1[4], s2[4]		
+		for( int i=0; i<ndevs; i++ )
+			dev_info = Pa_GetDeviceInfo( i )			
+			sprintf( s1, "%d", devs[i].nbufs )
+			sprintf( s2, "%d", devs[i].nouts )
+			printf(
+				"  %s%d    %s %s    \"%s\" \"", i<10 ? " " : "", i,
+				devs[i].nbufs ? s1 : "-",
+				devs[i].nouts ? s2 : "-",
+				Pa_GetHostApiInfo( dev_info->hostApi )->name )
+			printf( "%s\"\n", dev_info->name )
+	
 
 	int init()
 	
@@ -276,17 +292,16 @@
 			printf( "ERROR: Pa_Initialize returned 0x%x\n", err )
 			return 0
 
-		int ndevs = Pa_GetDeviceCount()
+		ndevs = Pa_GetDeviceCount()
 		if( ndevs <= 0 )
 			printf( "ERROR: dev count <= 0" )
 			return 0
 
 		devs = (dev*) malloc( sizeof( dev ) * ndevs )
 		
-		const PaDeviceInfo *dev_info		
-		char s1[4], s2[4]		
+		const PaDeviceInfo *dev_info
 		for( int i=0; i<ndevs; i++ )
-
+		
 			devs[i].id = i
 			devs[i].rec = 0
 			devs[i].play = 0
@@ -294,23 +309,24 @@
 			dev_info = Pa_GetDeviceInfo( i )
 			
 			devs[i].nbufs = dev_info->maxInputChannels
+			devs[i].nouts = dev_info->maxOutputChannels
+			
 			devs[i].bufs = (buf*) malloc( sizeof( buf ) * devs[i].nbufs )
+			devs[i].outs = (route*) malloc( sizeof( route ) * devs[i].nouts )
+			
 			for( int j=0; j<devs[i].nbufs; j++ )
 				devs[i].bufs[j] = *buf_new( rate )
 				
-			devs[i].nouts = dev_info->maxOutputChannels
-			devs[i].outs = (route*) malloc( sizeof( route ) * devs[i].nouts )
 			for( int j=0; j<devs[i].nouts; j++ )
 				devs[i].outs[j].buf = 0
-			
-			sprintf( s1, "%d", devs[i].nbufs )
-			sprintf( s2, "%d", devs[i].nouts )
-			printf(
-				"  %s%d    %s %s    \"%s\" \"", i<10 ? " " : "", i,
-				devs[i].nbufs ? s1 : "-",
-				devs[i].nouts ? s2 : "-",
-				Pa_GetHostApiInfo( dev_info->hostApi )->name )
-			printf( "%s\"\n", dev_info->name )
+
+
+	void buf_stat()
+		for( int d=0; d<ndevs; d++ )
+			if( devs[d].play )
+				for( int o=0; o<devs[d].nouts; o++ )
+					if( devs[d].outs[o].buf )
+						printf( " dev %d out %d lag %d samples\n", d, o, buf_nused( devs[d].outs[o].buf, devs[d].outs[o].client_id ) )
 
 
 	// -------------------------------------------------------------------------
@@ -324,6 +340,8 @@
 		
 		if( !init() ) return 1
 		
+		list()
+		
 		printf( "\n\trate %d\n", rate )
 		printf( "\t1 sample = %5.3f ms\n", (double)(1.0/rate)*1000.0 )
 		printf( "\tbuffer size %5.3f ms", latency*1000 )
@@ -334,7 +352,7 @@
 		int sd, sc, dd, dc
 		
 		while( 1 )
-
+			
 			printf( "\t] " )
 			gets( cmd )
 
@@ -344,3 +362,9 @@
 
 			else if( strcmp( cmd, "q" ) == 0 )
 				return 0
+
+			else if( strcmp( cmd, "l" ) == 0 )
+				list()
+
+			else
+				buf_stat()
