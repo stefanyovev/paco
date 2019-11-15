@@ -5,10 +5,12 @@
 
 	#define rate 48000
 	#define latency 0.01
+	int buffer_size, q_len=4;
 
 	#include <stdio.h>
 	#include <stdlib.h>
 	#include <string.h>
+	#include <math.h>
 	
 	// -------------------------------------------------------------------------
 	// buffers
@@ -67,9 +69,12 @@
 	int buf_put( buf* b, int count, float *src ) {
 		int avail = buf_nfree( b );
 		if( avail < 0 ) {
-			printf( "FAIL\n" );
+			printf( "FAIL1\n" );
 			buf_print( b );
 			exit(1);
+			return 0; }
+		if( count == 0 ) {
+			printf( "FAIL2\n" );
 			return 0; }
 		if( count > avail ) {
 			printf( "drop %d/%d\n", count-avail, count );
@@ -191,8 +196,10 @@
 		//	printf( " %.5f %d in %d displ: %.5f\n", timeInfo->currentTime, device->id, frameCount, timeInfo->inputBufferAdcTime )
 			
 		for( int i=0; i< device->nbufs; i++ ) {
-		
-			buf_put( &(device->bufs[i]), frameCount, *(in+i) ); }
+			if( frameCount == 0 ) {
+				printf( "wtf framseCount = 0\n" ); }
+			else {
+				buf_put( &(device->bufs[i]), frameCount, *(in+i) ); }}
 		
 		return paContinue; }
 
@@ -215,8 +222,10 @@
 		
 		for( int i=0; i< device->nouts; i++ ) {
 			if( device->outs[i].buf ) {
-			
-				buf_get( device->outs[i].buf, device->outs[i].client_id, frameCount, *(output+i) ); }}
+				if( frameCount == 0 ) {
+					printf( "wtf framseCount = 0\n" ); }
+				else			 {
+					buf_get( device->outs[i].buf, device->outs[i].client_id, frameCount, *(output+i) ); }}}
 
 		return paContinue; }
 
@@ -282,7 +291,6 @@
 				devs[i].nouts ? s2 : "-",
 				Pa_GetHostApiInfo( dev_info->hostApi )->name );
 			printf( "%s\"\n", dev_info->name ); }}
-	
 
 	int init() {
 	
@@ -315,7 +323,7 @@
 			devs[i].outs = (route*) malloc( sizeof( route ) * devs[i].nouts );
 			
 			for( int j=0; j<devs[i].nbufs; j++ ) {
-				devs[i].bufs[j] = *buf_new( rate ); }
+				devs[i].bufs[j] = *buf_new( buffer_size * q_len ); }
 				
 			for( int j=0; j<devs[i].nouts; j++ ) {
 				devs[i].outs[j].buf = 0; }}}
@@ -331,20 +339,24 @@
 
 	// -------------------------------------------------------------------------
 	// console
-		
+	
+	double sample_time;
+	
 	int main( int agrc, char* argv) {
 		
 		printf( "\n\t%s\n\n", title );
 		
 		// buf_test()
 		
+		sample_time = (double)(1.0/rate)*1000.0;
+		buffer_size = (int) ceil( ((double)rate)*((double)latency) );
 		if( !init() ) return 1;
 		
 		list();
-		
+
 		printf( "\n\trate %d\n", rate );
-		printf( "\t1 sample = %5.3f ms\n", (double)(1.0/rate)*1000.0 );
-		printf( "\tbuffer size %5.3f ms", latency*1000 );
+		printf( "\tsample time %5.3f ms\n", sample_time );
+		printf( "\tbuffer size %d samples %5.1f ms x%d\n", buffer_size, buffer_size * sample_time, q_len );
 		
 		printf( "\n\texamples:\n\t\t] 0.1 0.1\n\t\t] 22.7 1.1\n\t\t] 22.7 1.2\n\n\ttype 'q' to exit\n", title );
 		
