@@ -93,7 +93,7 @@
 								long long adc_samples = (long long) round(adc/sample_time)
 								int buf_ofs = adc_samples % history_size
 								
-								if( buf_ofs +frameCount <= history_size )								
+								if( buf_ofs +frameCount < history_size +2 )								
 									for( int i=0; i< dev->nbufs; i++ )
 										memcpy(
 											dev->bufs +i*history_size +buf_ofs,
@@ -108,7 +108,7 @@
 											count * sizeof(float) )
 										memcpy(
 											dev->bufs +i*history_size,
-											in[i] +(count*sizeof(float)),
+											in[i] +count,
 											(frameCount -count) * sizeof(float) )
 									
 								dev->adc += frameCount * sample_time
@@ -147,19 +147,19 @@
 										long long adc_samples = (long long) round(adc/sample_time)
 										int buf_ofs = adc_samples % history_size
 										
-										if( buf_ofs +frameCount <= history_size )
+										if( buf_ofs +frameCount < history_size+2 )
 											memcpy(
-												out[i],
+												out[routes[i].dst_chan],
 												devs[routes[i].src_dev].bufs +routes[i].src_chan*history_size +buf_ofs,
 												frameCount *sizeof(float) )
 										else
 											int count = buf_ofs +frameCount -history_size
 											memcpy(
-												out[i],
+												out[routes[i].dst_chan],
 												devs[routes[i].src_dev].bufs +routes[i].src_chan*history_size +buf_ofs,
 												count *sizeof(float) )
 											memcpy(
-												out[i],
+												out[routes[i].dst_chan],
 												devs[routes[i].src_dev].bufs +routes[i].src_chan*history_size,
 												(frameCount -count) * sizeof(float) )
 												
@@ -270,7 +270,7 @@
 								printf( "\tsample time %5.3f ms\n", sample_time*1000.0 )
 								printf( "\ttarget latency %5.3f ms\n", latency )
 								
-								printf( "\n\texamples:\n\t\t] 0 1 0 1\n\t\t] 22 7 1 1\n\t\t] 22 7 1 2\n\n\ttype 'q' to exit\n", title )
+								printf( "\n\tsyntax: SRCDEV SRCCHAN DSTDEV DSTCHAN\n\texamples:\n\t\t] 0 1 0 1\n\t\t] 22 7 1 1\n\t\t] 22 7 1 2\n\n\ttype 'q' to exit\n", title )
 								
 								char cmd[1000] = ""
 								int sd, sc, dd, dc
