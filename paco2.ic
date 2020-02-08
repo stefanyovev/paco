@@ -9,8 +9,8 @@
 							#include <portaudio.h>
 							
 							#define rate 48000
-							#define latency 1.0
-							#define history 2
+							#define latency 10.0
+							#define history 2.0
 							
 							int history_size
 							double sample_time
@@ -265,7 +265,7 @@
 								
 								list()
 
-								printf( "\thistory %5.3f s\n", history )
+								printf( "\n\thistory %5.3f s\n", history )
 								printf( "\n\trate %d\n", rate )
 								printf( "\tsample time %5.3f ms\n", sample_time*1000.0 )
 								printf( "\ttarget latency %5.3f ms\n", latency )
