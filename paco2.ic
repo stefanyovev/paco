@@ -8,9 +8,9 @@
 							#include <math.h>
 							#include <portaudio.h>
 							
-							#define rate 48000
-							#define latency 10.0
-							#define history 2.0
+							#define history 1.0 // seconds							
+							#define rate 48000 // samples/second							
+							#define latency 0.01 // seconds
 							
 							int history_size
 							double sample_time
@@ -79,7 +79,7 @@
 								double adc = timeInfo->inputBufferAdcTime
 								
 								if( adc == 0.0 )
-									printf( "%d recording\n", dev->id )
+									printf( "%d recording, latency %5.3f s\n", dev->id, dev->rec_info->inputLatency )
 									dev->rec_t0 = t
 																		
 								else if( adc < dev->adc )
@@ -128,7 +128,7 @@
 								double dac = timeInfo->outputBufferDacTime
 
 								if( dac == 0.0 )
-									printf( "%d playing\n", dev->id )
+									printf( "%d playing, latency %5.3f s\n", dev->id, dev->play_info->outputLatency )
 									dev->play_t0 = t
 
 								else if( dac < dev->dac )
@@ -147,7 +147,10 @@
 										long long adc_samples = (long long) round(adc/sample_time)
 										int buf_ofs = adc_samples % history_size
 										
-										if( buf_ofs +frameCount < history_size+2 )
+										if( buf_ofs < 0 )
+											printf( "\nbuffering\n" )
+										
+										else if( buf_ofs +frameCount < history_size +2 )
 											memcpy(
 												out[routes[i].dst_chan],
 												devs[routes[i].src_dev].bufs +routes[i].src_chan*history_size +buf_ofs,
@@ -266,9 +269,8 @@
 								list()
 
 								printf( "\n\thistory %5.3f s\n", history )
-								printf( "\n\trate %d\n", rate )
-								printf( "\tsample time %5.3f ms\n", sample_time*1000.0 )
-								printf( "\ttarget latency %5.3f ms\n", latency )
+								printf( "\trate %d samples/s\n", rate )
+								printf( "\ttarget latency %5.3f s\n", latency )
 								
 								printf( "\n\tsyntax: SRCDEV SRCCHAN DSTDEV DSTCHAN\n\texamples:\n\t\t] 0 1 0 1\n\t\t] 22 7 1 1\n\t\t] 22 7 1 2\n\n\ttype 'q' to exit\n", title )
 								
