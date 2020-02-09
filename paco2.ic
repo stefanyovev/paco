@@ -142,15 +142,17 @@
 								for( int i=0; i< nroutes; i++ )
 									if( routes[i].dst_dev == dev->id )
 									
-										double dt = dev->play_t0 -devs[routes[i].src_dev].rec_t0 -max_play_latency
+										double dt = abs(dev->play_t0 -devs[routes[i].src_dev].rec_t0) -max_play_latency
 										double adc = dac -dt
+					
+										if( adc < 0 )
+											printf( "\nbuffering\n" )
+											continue
+										
 										long long adc_samples = (long long) round(adc/sample_time)
 										int buf_ofs = adc_samples % history_size
 										
-										if( buf_ofs < 0 )
-											printf( "\nbuffering\n" )
-										
-										else if( buf_ofs +frameCount < history_size +2 )
+										if( buf_ofs +frameCount < history_size +2 )
 											memcpy(
 												out[routes[i].dst_chan],
 												devs[routes[i].src_dev].bufs +routes[i].src_chan*history_size +buf_ofs,
@@ -216,6 +218,7 @@
 								if( dev->play_info->outputLatency > max_play_latency )
 									max_play_latency = dev->play_info->outputLatency
 									play_latency = (int) ceil(max_play_latency/sample_time)
+									printf( "max_play_latency %5.3f s, play_latency %d samples \n", max_play_latency, play_latency )
 								err = Pa_StartStream( dev->play )
 								if( err != paNoError )
 									printf( "3ERROR: %s\n", Pa_GetErrorText( err ) )
