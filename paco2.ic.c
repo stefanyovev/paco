@@ -27,8 +27,7 @@
 							int ndevs = 0;
 							device *devs = 0;
 							
-							double max_play_latency = 0.0;
-							int play_latency = 0;
+							double play_latency = 0.0;
 
 							typedef struct route {
 								int src_dev, src_chan, dst_dev, dst_chan; }
@@ -78,8 +77,10 @@
 								double t = timeInfo->currentTime;
 								double adc = timeInfo->inputBufferAdcTime;
 								
+								//printf( " rec t: %10.15f\n", t )
+								
 								if( adc == 0.0 ) {
-									printf( "%d recording, latency %5.3f s\n", dev->id, dev->rec_info->inputLatency );
+									printf( "%d recording \n", dev->id );
 									dev->rec_t0 = t; }
 																		
 								else if( adc < dev->adc ) {
@@ -93,7 +94,7 @@
 								long long adc_samples = (long long) round(adc/sample_time);
 								int buf_ofs = adc_samples % history_size;
 								
-								if( buf_ofs +frameCount < history_size +2 )								 {
+								if( buf_ofs +frameCount < history_size )								 {
 									for( int i=0; i< dev->nbufs; i++ ) {
 										memcpy(
 											dev->bufs +i*history_size +buf_ofs,
@@ -103,7 +104,7 @@
 									int count = buf_ofs +frameCount -history_size;
 									for( int i=0; i< dev->nbufs; i++ ) {
 										memcpy(
-											dev->bufs +i*history_size +buf_ofs-1,
+											dev->bufs +i*history_size +buf_ofs,
 											in[i],
 											count * sizeof(float) );
 										memcpy(
@@ -121,14 +122,14 @@
 								const PaStreamCallbackTimeInfo *timeInfo,
 								PaStreamCallbackFlags statusFlags,
 								void *userData ) {
-								
+
 								device* dev = (device*) userData;
 								void **out = output;
 								double t = timeInfo->currentTime;
 								double dac = timeInfo->outputBufferDacTime;
 
 								if( dac == 0.0 ) {
-									printf( "%d playing, latency %5.3f s\n", dev->id, dev->play_info->outputLatency );
+									printf( "%d playing \n", dev->id );
 									dev->play_t0 = t; }
 
 								else if( dac < dev->dac ) {
@@ -141,18 +142,19 @@
 								
 								for( int i=0; i< nroutes; i++ ) {
 									if( routes[i].dst_dev == dev->id ) {
-									
-										double dt = abs(dev->play_t0 -devs[routes[i].src_dev].rec_t0) -max_play_latency;
-										double adc = dac -dt;
-					
-										if( adc < 0 ) {
-											printf( "\nbuffering\n" );
-											continue; }
 										
+										//printf( "play t: %10.15f\n", t )
+										
+										if( dev->play_t0 +dev->dac -play_latency > devs[routes[i].src_dev].rec_t0 +devs[routes[i].src_dev].adc ) {
+											printf( "buffering %d %d %d %d\n", routes[i].src_dev, routes[i].src_chan, routes[i].dst_dev, routes[i].dst_chan );
+											continue; }
+
+										double dt = dev->play_t0 -devs[routes[i].src_dev].rec_t0 -play_latency										;
+										double adc = dac -dt;
 										long long adc_samples = (long long) round(adc/sample_time);
 										int buf_ofs = adc_samples % history_size;
 										
-										if( buf_ofs +frameCount < history_size +2 ) {
+										if( buf_ofs +frameCount < history_size ) {
 											memcpy(
 												out[routes[i].dst_chan],
 												devs[routes[i].src_dev].bufs +routes[i].src_chan*history_size +buf_ofs,
@@ -191,11 +193,10 @@
 									else {
 										printf( "2ERROR: %s\n", Pa_GetErrorText( err ) ); }}
 								dev->rec_info = Pa_GetStreamInfo( dev->rec );
+								printf( "%d rec starting, latency %5.3f s\n", dev->id, dev->rec_info->inputLatency );
 								err = Pa_StartStream( dev->rec );
 								if( err != paNoError ) {
-									printf( "3ERROR: %s\n", Pa_GetErrorText( err ) ); }
-								else {
-									printf( "%d rec start\n", dev->id ); }}
+									printf( "3ERROR: %s\n", Pa_GetErrorText( err ) ); }}
 									
 							void play( device *dev ) {
 								static PaStreamParameters params;
@@ -215,15 +216,13 @@
 									else {
 										printf( "2ERROR: %s\n", Pa_GetErrorText( err ) ); }}
 								dev->play_info = Pa_GetStreamInfo( dev->play );
-								if( dev->play_info->outputLatency > max_play_latency ) {
-									max_play_latency = dev->play_info->outputLatency;
-									play_latency = (int) ceil(max_play_latency/sample_time);
-									printf( "max_play_latency %5.3f s, play_latency %d samples \n", max_play_latency, play_latency ); }
+								if( dev->play_info->outputLatency > play_latency ) {
+									play_latency = dev->play_info->outputLatency;
+									printf( "play_latency %5.3f s \n", play_latency ); }
+								printf( "%d play starting, latency %5.3f s\n", dev->id, dev->play_info->outputLatency );
 								err = Pa_StartStream( dev->play );
 								if( err != paNoError ) {
-									printf( "3ERROR: %s\n", Pa_GetErrorText( err ) ); }
-								else {
-									printf( "%d play start\n", dev->id ); }}
+									printf( "3ERROR: %s\n", Pa_GetErrorText( err ) ); }}
 
 							int route_add( int src_dev, int src_chan, int dst_dev, int dst_chan ) {
 								if( !devs[src_dev].rec ) rec( &devs[src_dev] );
@@ -275,7 +274,7 @@
 								printf( "\trate %d samples/s\n", rate );
 								printf( "\ttarget latency %5.3f s\n", latency );
 								
-								printf( "\n\tsyntax: SRCDEV SRCCHAN DSTDEV DSTCHAN\n\texamples:\n\t\t] 0 1 0 1\n\t\t] 22 7 1 1\n\t\t] 22 7 1 2\n\n\ttype 'q' to exit\n", title );
+								printf( "\n\tsyntax: SRCDEV SRCCHAN DSTDEV DSTCHAN\n\n\texamples:\n\t\t] 0 1 0 1\n\t\t] 22 7 1 1\n\t\t] 22 7 1 2\n\n\ttype 'q' to exit\n\n", title );
 								
 								char cmd[1000] = "";
 								int sd, sc, dd, dc;
