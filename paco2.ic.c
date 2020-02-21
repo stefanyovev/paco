@@ -10,7 +10,7 @@
 							
 							#define history 1.0 // seconds							
 							#define rate 48000 // samples/second							
-							#define latency 0.01 // seconds
+							#define latency 0.1 // seconds
 							
 							int history_size;
 							double sample_time;
@@ -73,11 +73,11 @@
 								void *userData ) {
 								
 								device* dev = (device*) userData;
-								void **in = input;
+								float **in = input;
 								double t = timeInfo->currentTime;
 								double adc = timeInfo->inputBufferAdcTime;
 								
-								//printf( " rec t: %10.15f\n", t )
+								// printf( "%d  rec t: %10.15f\n", dev->id, t )
 								
 								if( adc == 0.0 ) {
 									printf( "%d recording \n", dev->id );
@@ -101,7 +101,7 @@
 											in[i],
 											frameCount * sizeof(float) ); }}
 								else {
-									int count = buf_ofs +frameCount -history_size;
+									int count = history_size -buf_ofs;
 									for( int i=0; i< dev->nbufs; i++ ) {
 										memcpy(
 											dev->bufs +i*history_size +buf_ofs,
@@ -117,7 +117,7 @@
 
 							PaStreamCallbackResult on_write_to_device(
 								const void **input,
-								void **output,
+								float **output,
 								unsigned long frameCount,
 								const PaStreamCallbackTimeInfo *timeInfo,
 								PaStreamCallbackFlags statusFlags,
@@ -143,7 +143,7 @@
 								for( int i=0; i< nroutes; i++ ) {
 									if( routes[i].dst_dev == dev->id ) {
 										
-										//printf( "play t: %10.15f\n", t )
+										// printf( "%d play t: %10.15f\n", dev->id, t )
 										
 										if( dev->play_t0 +dev->dac -play_latency > devs[routes[i].src_dev].rec_t0 +devs[routes[i].src_dev].adc ) {
 											printf( "buffering %d %d %d %d\n", routes[i].src_dev, routes[i].src_chan, routes[i].dst_dev, routes[i].dst_chan );
@@ -160,15 +160,15 @@
 												devs[routes[i].src_dev].bufs +routes[i].src_chan*history_size +buf_ofs,
 												frameCount *sizeof(float) ); }
 										else {
-											int count = buf_ofs +frameCount -history_size;
+											int count = history_size -buf_ofs;
 											memcpy(
 												out[routes[i].dst_chan],
 												devs[routes[i].src_dev].bufs +routes[i].src_chan*history_size +buf_ofs,
-												count *sizeof(float) );
-											memcpy(
-												out[routes[i].dst_chan],
-												devs[routes[i].src_dev].bufs +routes[i].src_chan*history_size,
-												(frameCount -count) * sizeof(float) ); }}}
+												count *sizeof(float) ); }}}
+											//memcpy(
+											//	out[routes[i].dst_chan] +count,
+											//	devs[routes[i].src_dev].bufs +routes[i].src_chan*history_size,
+											//	(frameCount -count) * sizeof(float) )
 												
 								dev->dac += frameCount * sample_time;
 								return paContinue; }
