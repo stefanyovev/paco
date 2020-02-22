@@ -117,14 +117,14 @@
 
 							PaStreamCallbackResult on_write_to_device(
 								const void **input,
-								float **output,
+								void **output,
 								unsigned long frameCount,
 								const PaStreamCallbackTimeInfo *timeInfo,
 								PaStreamCallbackFlags statusFlags,
 								void *userData )
 
 								device* dev = (device*) userData
-								void **out = output
+								float **out = output
 								double t = timeInfo->currentTime
 								double dac = timeInfo->outputBufferDacTime
 
@@ -165,10 +165,10 @@
 												out[routes[i].dst_chan],
 												devs[routes[i].src_dev].bufs +routes[i].src_chan*history_size +buf_ofs,
 												count *sizeof(float) )
-											//memcpy(
-											//	out[routes[i].dst_chan] +count,
-											//	devs[routes[i].src_dev].bufs +routes[i].src_chan*history_size,
-											//	(frameCount -count) * sizeof(float) )
+											memcpy(
+												out[routes[i].dst_chan] +count,
+												devs[routes[i].src_dev].bufs +routes[i].src_chan*history_size,
+												(frameCount -count) * sizeof(float) )
 												
 								dev->dac += frameCount * sample_time
 								return paContinue
@@ -295,4 +295,3 @@
 
 									//else
 									//	buf_stat()
-
