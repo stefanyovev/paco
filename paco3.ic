@@ -262,7 +262,7 @@
 								
 							int main( int agrc, char* argv)
 								
-								printf( "\n\t%s\nWDM-KS works\n\n", title )
+								printf( "\n\t%s\n\n", title )
 								
 								// buf_test()
 								
