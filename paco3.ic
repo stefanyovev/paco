@@ -16,8 +16,8 @@
 							double sample_time
 							
 							typedef struct device
-								const PaDeviceInfo *info
 								int id, nbufs, nouts
+								const PaDeviceInfo *info
 								float *bufs
 								PaStream *rec, *play
 								const PaStreamInfo *rec_info, *play_info
@@ -62,7 +62,7 @@
 									devs[i].play = 0
 										
 							// ############################################################################################################################################################	
-							// CALLBACKS
+							// REC CALLBACK
 							
 							PaStreamCallbackResult on_device_data(
 								const void **input,
@@ -114,6 +114,9 @@
 									
 								dev->adc += frameCount * sample_time
 								return paContinue
+
+							// ############################################################################################################################################################	
+							// PLAY CALLBACK
 
 							PaStreamCallbackResult on_write_to_device(
 								const void **input,
@@ -193,7 +196,7 @@
 									else
 										printf( "2ERROR: %s\n", Pa_GetErrorText( err ) )
 								dev->rec_info = Pa_GetStreamInfo( dev->rec )
-								printf( "%d rec starting, latency %5.3f s\n", dev->id, dev->rec_info->inputLatency )
+								printf( "%d rec starting \n", dev->id )
 								err = Pa_StartStream( dev->rec )
 								if( err != paNoError )
 									printf( "3ERROR: %s\n", Pa_GetErrorText( err ) )
@@ -219,7 +222,7 @@
 								if( dev->play_info->outputLatency > play_latency )
 									play_latency = dev->play_info->outputLatency
 									printf( "play_latency %5.3f s \n", play_latency )
-								printf( "%d play starting, latency %5.3f s\n", dev->id, dev->play_info->outputLatency )
+								printf( "%d play starting \n", dev->id )
 								err = Pa_StartStream( dev->play )
 								if( err != paNoError )
 									printf( "3ERROR: %s\n", Pa_GetErrorText( err ) )
@@ -251,14 +254,10 @@
 
 							//void buf_stat()
 							//	for( int d=0; d<ndevs; d++ )
-							//		if( devs[d].play )
-							//			for( int o=0; o<devs[d].nouts; o++ )
-							//				if( devs[d].outs[o].buf )
-							//					printf( " dev %d out %d lag %d samples\n", d, o, buf_nused( devs[d].outs[o].buf, devs[d].outs[o].client_id ) )
 
 
 							// ############################################################################################################################################################
-							// console
+							// CONSOLE
 								
 							int main( int agrc, char* argv)
 								
