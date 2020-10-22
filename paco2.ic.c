@@ -304,11 +304,17 @@
 			if( fsize < 45 ) {
 				printf( " invalid size " );
 				goto fail; }
+			fseek( f, 21, SEEK_SET );
+			unsigned int format;
+			unsigned char tmp2 [3] = "  \0";
+			fread( &tmp2, 1, 2, f );
+			format = tmp2[0]||(tmp2[1]<<8);
+			printf( "\n format %d \n", format );
 			fseek( f, 36, SEEK_SET );
 			unsigned char tmp4 [5] = "   \0";
 			fread( &tmp4, 1, 4, f );
 			if( strcmp( tmp4, "data" ) ) {
-				printf( " bytes 36-40 not \"data\" \n" );
+				printf( " bytes 36-40 not \"data\" but %s \n", tmp4 );
 				goto fail; }
 			unsigned int dsize;
 			fread( &tmp4, 1, 4, f );
@@ -365,18 +371,30 @@
 					Pa_GetHostApiInfo( devs[i].info->hostApi )->name );
 				printf( "%s\"\n", devs[i].info->name ); }}
 
-		int main( int agrc, char* argv)			 {
+		int main( int agrc, char* argv )			 {
 			printf( "\n\t%s\n\n", title )			;
 			if( !init() ) return 1;
+			
 			list();
 
-			printf( "\n\t srate %d samples/sec \n", srate );
-			printf( "\t asize %d samples \n", asize );
-			printf( "\t hsize %d samples \n", hsize );
-			printf( "\t ssize %d bytes \n", ssize );
-			printf( "\t stime %5.10f seconds \n", stime );
-			printf( "\n\t syntax: SRCDEV SRCCHAN DSTDEV DSTCHAN \n\t examples: \n\t\t ] 0 1 0 1 \n\t\t ] 22 7 1 1 \n\t\t ] 22 7 1 2 \n\n\t type 'q' to exit \n\n" );
-			
+			printf(
+				"\n\t srate %d samples/sec "
+				"\n\t asize %d samples "
+				"\n\t hsize %d samples "
+				"\n\t ssize %d bytes "
+				"\n\t stime %5.10f seconds "
+				"\n\t  "
+				"\n\t syntax: SRCDEV SRCCHAN DSTDEV DSTCHAN "
+				"\n\t examples: "
+				"\n\t\t 0 1 0 1 "
+				"\n\t\t 22 7 1 1 "
+				"\n\t\t 22 7 1 2 "
+				"\n\t  "
+				"\n\t type 'q' to exit "
+				"\n  "
+				"\n  ",
+				srate, asize, hsize, ssize, stime );
+
 			char cmd[1000] = "", fstr[100] = "";
 			int sd, sc, dd, dc;
 			float* wav;
