@@ -66,6 +66,7 @@
 			
 			device* dev = (device*) userData;
 			double t = timeInfo->currentTime;
+			dev->t0 = t;
 			
 			// printf( "\n tick %d %d ", dev->id, frameCount )
 			
@@ -79,8 +80,7 @@
 				else if( dst < dev->in_len ) {
 					printf( "%d in missing %d samples \n", dev->id, dst -dev->in_len ); }
 				else if( dst == 0 ) {
-					printf( "%d recording \n", dev->id );
-					dev->t0 = t; }
+					printf( "%d recording \n", dev->id ); }
 
 				dev->in_len = dst;
 				
@@ -107,13 +107,13 @@
 				printf( "o" );
 				float **out_data = output;
 				long long dac = (long long) round( timeInfo->outputBufferDacTime /stime );
+				
 				if( dac < dev->out_len ) {
 					printf( "dac wants %d old samples", dev->out_len -dac ); }
 				else if( dac > dev->out_len ) {
 					printf( "dac miss %d samples", dac -dev->out_len ); }
 				else if( dac == 0.0 ) {
-					printf( "%d playing \n", dev->id );
-					dev->t0 = t; }
+					printf( "%d playing \n", dev->id ); }
 
 				dev->out_len = dac;
 				
