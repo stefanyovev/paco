@@ -1,9 +1,8 @@
 
 @rem tcc is "Tiny C Compiler"
 
-@tcc -run brace.c pac.ic>pac.c
-@tcc -llibportaudio64bit pac.c -o pac.exe
-@pac.exe
+@tcc -llibportaudio64bit paco.c -o paco.exe
+@paco.exe
 
 @echo.
 @pause
