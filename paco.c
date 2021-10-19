@@ -77,7 +77,7 @@
 				
 				if( dst < dev->in_len ) {
 					printf( "%d in replacing %d old samples \n", dev->id, dev->in_len -dst ); }
-				else if( dst < dev->in_len ) {
+				else if( dst > dev->in_len ) {
 					printf( "%d in missing %d samples \n", dev->id, dst -dev->in_len ); }
 				else if( dst == 0 ) {
 					printf( "%d recording \n", dev->id ); }
