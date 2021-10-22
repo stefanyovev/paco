@@ -25,6 +25,7 @@
 			float *ins;
 			PaStream *stream;
 			const PaStreamInfo *stream_info;
+			int aasize;			// actual asize
 			double t0, t;
 			long long in_len, out_len; }
 		device;
@@ -54,7 +55,8 @@
 						devs[i].ins[ j * hsize +k ] = 0.0; }}
 				devs[i].stream = 0;
 				devs[i].in_len = 0;
-				devs[i].out_len = 0; }}
+				devs[i].out_len = 0;
+				devs[i].t0 = .0 ;}}
 
 		PaStreamCallbackResult device_tick(
 			const void **input,
@@ -66,7 +68,8 @@
 			
 			device* dev = (device*) userData;
 			double t = timeInfo->currentTime;
-			dev->t0 = t;
+			if( dev->t0 == .0 )
+				dev->t0 = t;
 			
 			// printf( "\n tick %d %d ", dev->id, frameCount )
 			
@@ -109,9 +112,9 @@
 				long long dac = (long long) round( timeInfo->outputBufferDacTime /stime );
 				
 				if( dac < dev->out_len ) {
-					printf( "dac wants %d old samples", dev->out_len -dac ); }
+					printf( "dac wants %d old samples \n", dev->out_len -dac ); }
 				else if( dac > dev->out_len ) {
-					printf( "dac miss %d samples", dac -dev->out_len ); }
+					printf( "dac miss %d samples \n", dac -dev->out_len ); }
 				else if( dac == 0.0 ) {
 					printf( "%d playing \n", dev->id ); }
 
@@ -129,7 +132,7 @@
 						long long src;
 						
 						if( routes[i].last_src == -1 ) {
-							src = (int) ceil( (t -devs[sd].t0) /stime ) -max_asize;
+							src = (int) ceil( (t -devs[sd].t0) /stime ) -max_asize*2;
 							if( devs[sd].in_len -src > hsize ) {
 								printf( " !!!!!!!!!!!!!!!!!!! \n" ); }}
 						else {
@@ -198,8 +201,10 @@
 			// todo:
 			dev->stream_info = Pa_GetStreamInfo( dev->stream );
 			int actual_srate = (int) round( dev->stream_info->sampleRate );
-			int actual_asize = (int) round( dev->stream_info->inputLatency /stime );
-			printf( "%d rec SR %d asize %d starting \n", dev->id, actual_srate, actual_asize );
+			int actual_asize = (int) round( (dev->nins?(dev->stream_info->inputLatency):(dev->stream_info->outputLatency))/stime );
+			dev->aasize = actual_asize;
+			if( actual_asize > max_asize ) max_asize = actual_asize;
+			printf( "%d starting %s%s SR %d asize %d \n", dev->id, dev->nins?"rec":"", dev->nouts?"play":"", actual_srate, actual_asize );
 			
 			err = Pa_StartStream( dev->stream );
 			
@@ -227,8 +232,11 @@
 				printf( "%s\"\n", devs[i].info->name ); }}
 
 		int main( int agrc, char* argv ) {			
-			printf( "\n\t%s\n\n", title );			
+			printf( "\n\t%s\n\n", title );
 			if( !init() ) return 1;
+			
+			const PaVersionInfo *vi = Pa_GetVersionInfo();
+			printf( "%s\n\n", vi->versionText );
 			
 			list();
 
