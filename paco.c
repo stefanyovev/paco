@@ -158,10 +158,10 @@
 							int x = ofs +frameCount -hsize;
 							memcpy(
 								out_data[dc], devs[sd].ins +sc*hsize +ofs,
-								(frameCount -x) *ssize );
+								x*ssize );
 							memcpy(
 								out_data[dc] +x, devs[sd].ins +sc*hsize,
-								x *ssize ); }
+								(frameCount -x)*ssize ); }
 
 						routes[i].last_src = src +frameCount; }}
 						
