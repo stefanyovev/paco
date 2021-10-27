@@ -12,10 +12,10 @@
 		#define SR 44100
 		
 		int srate = SR;			// sample rate [samples/second]
-		double stime = 1.0 / SR;		// sample duration [seconds]
+		double stime = 1.0 / SR;	// sample duration [seconds]
 		int ssize = sizeof(float);	// sample size [bytes]
-		int asize = 10000;		// desired callback argument size [samples]
-		int hsize = 100000;		// history size [samples]
+		int asize = 1000;		// desired callback argument size [samples]
+		int hsize = SR;			// history size [samples]
 		int max_asize = 0;		// max play callback argument size global [samples]
 
 		typedef struct device {
@@ -74,7 +74,7 @@
 			// printf( "\n tick %d %d ", dev->id, frameCount )
 			
 			if( input ) {
-				printf( "i" );
+				// printf( "i" );
 				float **in_data = input;
 				long long dst = (long long) round( timeInfo->inputBufferAdcTime /stime );
 				
@@ -107,7 +107,7 @@
 				dev->in_len += frameCount; }
 				
 			if( output ) {
-				printf( "o" );
+				// printf( "o" );
 				float **out_data = output;
 				long long dac = (long long) round( timeInfo->outputBufferDacTime /stime );
 				
