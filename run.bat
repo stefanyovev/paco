@@ -2,8 +2,8 @@
 @rem tcc is "Tiny C Compiler"
 
 
-@tcc -llibportaudio64bit paco.c -o paco.exe
-@if %errorlevel% == 0 ( @paco.exe )
+@tcc -llibportaudio64bit main.c -o main.exe
+@if %errorlevel% == 0 ( @main.exe )
 
 
 @echo.
