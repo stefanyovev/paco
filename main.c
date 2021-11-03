@@ -18,26 +18,27 @@
 		int hsize = SR;			// history size [samples]
 		int max_asize = 0;		// max play callback argument size global [samples]
 
-		typedef struct device {
+		struct route {
+			int sd, sc;
+			long long last_src; };
+
+		struct device {
 			int id;
 			const PaDeviceInfo *info;
 			int nins, nouts;
 			float *ins;
+			route *outs;
 			PaStream *stream;
 			const PaStreamInfo *stream_info;
 			int aasize;			// actual asize
 			double t0, t;
-			long long in_len, out_len; }
-		device;
+			long long in_len, out_len; };
+		
+		typedef struct route route;	
+		typedef struct device device;
+
 		int ndevs = 0;
 		device *devs = 0;
-
-		typedef struct route {
-			int sd, sc, dd, dc;
-			long long last_src; }
-		route;
-		int nroutes = 0;
-		route routes[100];
 
 		int init() {
 			if( Pa_Initialize() || (ndevs = Pa_GetDeviceCount()) <= 0 ) {
@@ -50,13 +51,13 @@
 				devs[i].nins = devs[i].info->maxInputChannels;
 				devs[i].nouts = devs[i].info->maxOutputChannels;
 				devs[i].ins = (float*) malloc( devs[i].nins * hsize * ssize );
-				for( int j=0; j<devs[i].nins; j++ ) {
-					for( int k=0; k<hsize; k++ ) {
-						devs[i].ins[ j * hsize +k ] = 0.0; }}
+				memset( devs[i].ins, 0, devs[i].nins * hsize * ssize );
+				devs[i].outs = (route*) malloc( devs[i].nouts * sizeof( route ) );
+				memset( devs[i].outs, 0, devs[i].nouts * sizeof( route ) );
 				devs[i].stream = 0;
 				devs[i].in_len = 0;
 				devs[i].out_len = 0;
-				devs[i].t0 = .0 ;}}
+				devs[i].t0 = .0; }}
 
 		PaStreamCallbackResult device_tick(
 			const void **input,
@@ -67,27 +68,26 @@
 			void *userData ) {
 			
 			device* dev = (device*) userData;
+			float **in_data = input;
+			float **out_data = output;
+			long long adc = (long long) round( timeInfo->inputBufferAdcTime /stime );
+			long long dac = (long long) round( timeInfo->outputBufferDacTime /stime );			
 			double t = timeInfo->currentTime;
 			if( dev->t0 == .0 )
 				dev->t0 = t;
-			
-			// printf( "\n tick %d %d ", dev->id, frameCount )
-			
+
 			if( input ) {
-				// printf( "i" );
-				float **in_data = input;
-				long long dst = (long long) round( timeInfo->inputBufferAdcTime /stime );
 				
-				if( dst < dev->in_len ) {
-					printf( "%d in replacing %d old samples \n", dev->id, dev->in_len -dst ); }
-				else if( dst > dev->in_len ) {
-					printf( "%d in missing %d samples \n", dev->id, dst -dev->in_len ); }
-				else if( dst == 0 ) {
+				if( adc < dev->in_len ) {
+					printf( "%d in replacing %d old samples \n", dev->id, dev->in_len -adc ); }
+				else if( adc > dev->in_len ) {
+					printf( "%d in missing %d samples \n", dev->id, adc -dev->in_len ); }
+				else if( adc == 0 ) {
 					printf( "%d recording \n", dev->id ); }
 
-				dev->in_len = dst;
+				dev->in_len = adc;
 				
-				int ofs = dst % hsize;
+				int ofs = adc % hsize;
 				
 				if( frameCount <= hsize -ofs ) {
 					for( int i=0; i< dev->nins; i++ ) {
@@ -103,13 +103,10 @@
 						memcpy(
 							dev->ins +i*hsize, in_data[i]+x,
 							x *ssize ); }}
-					
+
 				dev->in_len += frameCount; }
 				
 			if( output ) {
-				// printf( "o" );
-				float **out_data = output;
-				long long dac = (long long) round( timeInfo->outputBufferDacTime /stime );
 				
 				if( dac < dev->out_len ) {
 					printf( "dac wants %d old samples \n", dev->out_len -dac ); }
@@ -120,50 +117,49 @@
 
 				dev->out_len = dac;
 				
-				for( int sd, sc, dd, dc, i=0; i<nroutes; i++ ) {
-					sd = routes[i].sd; sc = routes[i].sc; dd = routes[i].dd; dc = routes[i].dc;				
+				for( int dc=0; dc<dev->nouts; dc++ ) {
+					int dd = dev->id;
+					int sd = dev->outs[dc].sd;
+					int sc = dev->outs[dc].sc;
+					if( !sd )
+						continue;
 					
-					if( dd == dev->id ) {
+					if( !devs[sd].in_len ) {
+						printf( "%d wating %d to start \n", dd, sd );
+						continue; }
 
-						if( !devs[sd].in_len ) {
-							printf( "%d wating %d to start \n", dd, sd );
-							continue; }
+					long long src;
+					
+					if( dev->outs[dc].last_src == -1 ) {
+						src = (int) ceil( (t -devs[sd].t0) /stime ) -max_asize*2;
+						if( devs[sd].in_len -src > hsize ) {
+							printf( " !!!!!!!!!!!!!!!!!!! \n" ); }}
+					else {
+						src = dev->outs[dc].last_src; }
 
-						long long src;
-						
-						if( routes[i].last_src == -1 ) {
-							src = (int) ceil( (t -devs[sd].t0) /stime ) -max_asize*2;
-							if( devs[sd].in_len -src > hsize ) {
-								printf( " !!!!!!!!!!!!!!!!!!! \n" ); }}
-						else {
-							src = routes[i].last_src; }
+					if( src +frameCount > devs[sd].in_len ) {
+						printf( "%d wants to read %d future unsaved samples from %d \n", dd, src +frameCount -devs[sd].in_len, sd );
+						continue; }
 
-						//if( routes[i].last_src != -1 && routes[i].last_src != src )
-						//	printf( "%d %d src - last_src %d \n", sd, dd, src -routes[i].last_src )
+					if( src < 0  ) {
+						printf( "%d buffering %d src %d t-t0 %d t %10.10f \n", dd, sd, src, (int)(ceil( (t -devs[sd].t0) /stime )), t );
+						continue; }
+					
+					int ofs = src % hsize;
+					if( ofs +frameCount <= hsize ) {
+						memcpy(
+							out_data[dc], devs[sd].ins +sc*hsize +ofs,
+							frameCount *ssize ); }
+					else {
+						int x = ofs +frameCount -hsize;
+						memcpy(
+							out_data[dc], devs[sd].ins +sc*hsize +ofs,
+							x*ssize );
+						memcpy(
+							out_data[dc] +x, devs[sd].ins +sc*hsize,
+							(frameCount -x)*ssize ); }
 
-						if( src +frameCount > devs[sd].in_len ) {
-							printf( "%d wants to read %d future unsaved samples from %d \n", dd, src +frameCount -devs[sd].in_len, sd );
-							continue; }
-
-						if( src < 0  ) {
-							printf( "%d buffering %d src %d t-t0 %d t %10.10f \n", dd, sd, src, (int)(ceil( (t -devs[sd].t0) /stime )), t );
-							continue; }
-						
-						int ofs = src % hsize;
-						if( ofs +frameCount <= hsize ) {
-							memcpy(
-								out_data[dc], devs[sd].ins +sc*hsize +ofs,
-								frameCount *ssize ); }
-						else {
-							int x = ofs +frameCount -hsize;
-							memcpy(
-								out_data[dc], devs[sd].ins +sc*hsize +ofs,
-								x*ssize );
-							memcpy(
-								out_data[dc] +x, devs[sd].ins +sc*hsize,
-								(frameCount -x)*ssize ); }
-
-						routes[i].last_src = src +frameCount; }}
+					dev->outs[dc].last_src = src +frameCount; }
 						
 				dev->out_len += frameCount; }
 
@@ -214,12 +210,9 @@
 		int route_add( int sd, int sc, int dd, int dc ) {
 			if( !devs[sd].stream ) use_device( &devs[sd] );
 			if( !devs[dd].stream ) use_device( &devs[dd] );
-			routes[nroutes].sd = sd;
-			routes[nroutes].sc = sc;
-			routes[nroutes].dd = dd;
-			routes[nroutes].dc = dc;
-			routes[nroutes].last_src = -1;
-			nroutes++; }
+			devs[dd].outs[dc].sd = sd;
+			devs[dd].outs[dc].sc = sc;
+			devs[dd].outs[dc].last_src = -1; }
 
 		void list() {
 			char s1[4], s2[4];		
