@@ -58,6 +58,24 @@
 				devs[i].out_len = 0;
 				devs[i].t0 = .0; }}
 
+		inline void tracks_write( device* dev, long long addr, float **in_data, unsigned long frameCount ){
+			int ofs = addr % hsize;
+			if( frameCount <= hsize -ofs ) {
+				for( int i=0; i< dev->nins; i++ ) {
+					memcpy(
+						dev->ins +i*hsize +ofs, in_data[i],
+						frameCount *ssize ); }}
+			else {
+				int x = ofs +frameCount -hsize;
+				for( int i=0; i< dev->nins; i++ ) {
+					memcpy(
+						dev->ins +i*hsize +ofs, in_data[i],
+						(frameCount -x) *ssize );
+					memcpy(
+						dev->ins +i*hsize, in_data[i]+x,
+						x *ssize ); }}
+			dev->in_len += frameCount; }
+
 		PaStreamCallbackResult device_tick(
 			const void **input,
 			void **output,
@@ -66,18 +84,17 @@
 			PaStreamCallbackFlags statusFlags,
 			void *userData ) {
 			
+			double t = timeInfo->currentTime;
 			device* dev = (device*) userData;
 			float **in_data = input;
 			float **out_data = output;
 			long long adc = (long long) round( timeInfo->inputBufferAdcTime /stime );
 			long long dac = (long long) round( timeInfo->outputBufferDacTime /stime );
 						
-			double t = timeInfo->currentTime;
 			if( dev->t0 == .0 )
 				dev->t0 = t;
 
 			if( input ) {
-				
 				if( adc < dev->in_len ) {
 					printf( "%d in replacing %d old samples \n", dev->id, dev->in_len -adc ); }
 				else if( adc > dev->in_len ) {
@@ -87,24 +104,7 @@
 
 				dev->in_len = adc;
 				
-				int ofs = adc % hsize;
-				
-				if( frameCount <= hsize -ofs ) {
-					for( int i=0; i< dev->nins; i++ ) {
-						memcpy(
-							dev->ins +i*hsize +ofs, in_data[i],
-							frameCount *ssize ); }}
-				else {
-					int x = ofs +frameCount -hsize;
-					for( int i=0; i< dev->nins; i++ ) {
-						memcpy(
-							dev->ins +i*hsize +ofs, in_data[i],
-							(frameCount -x) *ssize );
-						memcpy(
-							dev->ins +i*hsize, in_data[i]+x,
-							x *ssize ); }}
-
-				dev->in_len += frameCount; }
+				tracks_write( dev, adc, in_data, frameCount ); }
 				
 			if( output ) {
 				
@@ -131,9 +131,7 @@
 					long long src;
 					
 					if( dev->outs[dc].last_src == -1 ) {
-						src = (int) ceil( (t -devs[sd].t0) /stime ) -max_asize;
-						if( devs[sd].in_len -src > hsize ) {
-							printf( " !!!!!!!!!!!!!!!!!!! \n" ); }}
+						src = (int) ceil( (t -devs[sd].t0) /stime ) -max_asize*2; }
 					else {
 						src = dev->outs[dc].last_src; }
 
