@@ -14,13 +14,14 @@
 		int srate = SR;			// sample rate [samples/second]
 		double stime = 1.0 / SR;	// sample duration [seconds]
 		int ssize = sizeof(float);	// sample size [bytes]
-		int asize = 1000;		// desired callback argument size [samples]
-		int hsize = SR;			// history size [samples]
-		int max_asize = 0;		// max play callback argument size global [samples]
+		int asize = 1000;		// desired callback argument size (latency) [samples]
+		int hsize = SR*2;			// history size [samples]
+		int max_asize = 0;		// max play latency global [samples]
 
 		struct route {
 			int sd, sc;
 			long long last_src; };
+		typedef struct route route;	
 
 		struct device {
 			int id;
@@ -33,8 +34,6 @@
 			int aasize;			// actual asize
 			double t0, t;
 			long long in_len, out_len; };
-		
-		typedef struct route route;	
 		typedef struct device device;
 
 		int ndevs = 0;
@@ -71,7 +70,8 @@
 			float **in_data = input;
 			float **out_data = output;
 			long long adc = (long long) round( timeInfo->inputBufferAdcTime /stime );
-			long long dac = (long long) round( timeInfo->outputBufferDacTime /stime );			
+			long long dac = (long long) round( timeInfo->outputBufferDacTime /stime );
+						
 			double t = timeInfo->currentTime;
 			if( dev->t0 == .0 )
 				dev->t0 = t;
@@ -131,7 +131,7 @@
 					long long src;
 					
 					if( dev->outs[dc].last_src == -1 ) {
-						src = (int) ceil( (t -devs[sd].t0) /stime ) -max_asize*2;
+						src = (int) ceil( (t -devs[sd].t0) /stime ) -max_asize;
 						if( devs[sd].in_len -src > hsize ) {
 							printf( " !!!!!!!!!!!!!!!!!!! \n" ); }}
 					else {
