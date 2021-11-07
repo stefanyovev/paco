@@ -103,11 +103,9 @@
 					printf( "%d recording \n", dev->id ); }
 
 				dev->in_len = adc;
-				
 				tracks_write( dev, adc, in_data, frameCount ); }
 				
 			if( output ) {
-				
 				if( dac < dev->out_len ) {
 					printf( "dac wants %d old samples \n", dev->out_len -dac ); }
 				else if( dac > dev->out_len ) {
@@ -122,6 +120,7 @@
 					int sd = dev->outs[dc].sd;
 					int sc = dev->outs[dc].sc;
 					if( !sd )
+						// TODO: zeromem
 						continue;
 					
 					if( !devs[sd].in_len ) {
@@ -156,7 +155,6 @@
 						memcpy(
 							out_data[dc] +x, devs[sd].ins +sc*hsize,
 							(frameCount -x)*ssize ); }
-
 					dev->outs[dc].last_src = src +frameCount; }
 						
 				dev->out_len += frameCount; }
