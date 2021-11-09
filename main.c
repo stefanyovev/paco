@@ -5,10 +5,12 @@
 		#include <stdio.h>
 		#include <stdlib.h>
 		#include <string.h>
-
 		#include <math.h>
-		#include <portaudio.h>
 		
+		#include <portaudio.h>
+		void PaUtil_InitializeClock( void );
+		double PaUtil_GetTime( void );
+
 		#define SR 44100
 		
 		int srate = SR;			// sample rate [samples/second]
@@ -40,6 +42,7 @@
 		device *devs = 0;
 
 		int init() {
+			PaUtil_InitializeClock();
 			if( Pa_Initialize() || (ndevs = Pa_GetDeviceCount()) <= 0 ) {
 				printf( "ERROR: Pa_Initialize or Pa_GetDeviceCount returned rubbish \n" );
 				return 0; }
@@ -83,42 +86,24 @@
 			const PaStreamCallbackTimeInfo *timeInfo,
 			PaStreamCallbackFlags statusFlags,
 			void *userData ) {
-			
-			double t = timeInfo->currentTime;
+					double t = PaUtil_GetTime();
+
 			device* dev = (device*) userData;
 			float **in_data = input;
 			float **out_data = output;
-			long long adc = (long long) round( timeInfo->inputBufferAdcTime /stime );
-			long long dac = (long long) round( timeInfo->outputBufferDacTime /stime );
 						
-			if( dev->t0 == .0 )
+			if( dev->t0 == 0.0 )
 				dev->t0 = t;
 
 			if( input ) {
-				if( adc < dev->in_len ) {
-					printf( "%d in replacing %d old samples \n", dev->id, dev->in_len -adc ); }
-				else if( adc > dev->in_len ) {
-					printf( "%d in missing %d samples \n", dev->id, adc -dev->in_len ); }
-				else if( adc == 0 ) {
-					printf( "%d recording \n", dev->id ); }
-
-				dev->in_len = adc;
-				tracks_write( dev, adc, in_data, frameCount ); }
+				tracks_write( dev, dev->in_len, in_data, frameCount ); }
 				
-			if( output ) {
-				if( dac < dev->out_len ) {
-					printf( "dac wants %d old samples \n", dev->out_len -dac ); }
-				else if( dac > dev->out_len ) {
-					printf( "dac miss %d samples \n", dac -dev->out_len ); }
-				else if( dac == 0.0 ) {
-					printf( "%d playing \n", dev->id ); }
-
-				dev->out_len = dac;
-				
+			if( output ) {				
 				for( int dc=0; dc<dev->nouts; dc++ ) {
 					int dd = dev->id;
 					int sd = dev->outs[dc].sd;
 					int sc = dev->outs[dc].sc;
+					
 					if( !sd )
 						// TODO: zeromem
 						continue;
@@ -130,16 +115,16 @@
 					long long src;
 					
 					if( dev->outs[dc].last_src == -1 ) {
-						src = (int) ceil( (t -devs[sd].t0) /stime ) -max_asize*2; }
+						src = devs[sd].in_len -frameCount*2; }
 					else {
 						src = dev->outs[dc].last_src; }
+						
+					if( src < 0  ) {
+						printf( "%d buffering %d src %d t-t0 %d t %10.10f \n", dd, sd, src, (int)(ceil( (t -devs[sd].t0) /stime )), t );
+						continue; }
 
 					if( src +frameCount > devs[sd].in_len ) {
 						printf( "%d wants to read %d future unsaved samples from %d \n", dd, src +frameCount -devs[sd].in_len, sd );
-						continue; }
-
-					if( src < 0  ) {
-						printf( "%d buffering %d src %d t-t0 %d t %10.10f \n", dd, sd, src, (int)(ceil( (t -devs[sd].t0) /stime )), t );
 						continue; }
 					
 					int ofs = src % hsize;
@@ -155,6 +140,7 @@
 						memcpy(
 							out_data[dc] +x, devs[sd].ins +sc*hsize,
 							(frameCount -x)*ssize ); }
+							
 					dev->outs[dc].last_src = src +frameCount; }
 						
 				dev->out_len += frameCount; }
@@ -190,7 +176,7 @@
 					const PaHostErrorInfo* herr = Pa_GetLastHostErrorInfo();
 					printf( "ERROR 2: %s \n", herr->errorText ); }}
 			
-			// todo:
+			// TODO:
 			dev->stream_info = Pa_GetStreamInfo( dev->stream );
 			int actual_srate = (int) round( dev->stream_info->sampleRate );
 			int actual_asize = (int) round( (dev->nins?(dev->stream_info->inputLatency):(dev->stream_info->outputLatency))/stime );
