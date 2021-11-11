@@ -13,12 +13,12 @@
 
 		#define SR 44100
 		
-		int srate = SR;			// sample rate [samples/second]
+		int srate = SR;				// sample rate [samples/second]
 		double stime = 1.0 / SR;	// sample duration [seconds]
 		int ssize = sizeof(float);	// sample size [bytes]
-		int asize = 1000;		// desired callback argument size (latency) [samples]
+		int asize = 1000;			// desired callback argument size (latency) [samples]
 		int hsize = SR*2;			// history size [samples]
-		int max_asize = 0;		// max play latency global [samples]
+		int max_asize = 0;			// max play latency global [samples]
 
 		struct route {
 			int sd, sc;
@@ -42,9 +42,12 @@
 		device *devs = 0;
 
 		int init() {
-			PaUtil_InitializeClock();
-			if( Pa_Initialize() || (ndevs = Pa_GetDeviceCount()) <= 0 ) {
-				printf( "ERROR: Pa_Initialize or Pa_GetDeviceCount returned rubbish \n" );
+			if( Pa_Initialize() ) {
+				printf( "ERROR: Pa_Initialize rubbish \n" );
+				return 0; }
+			ndevs = Pa_GetDeviceCount();
+			if( ndevs <= 0 ) {
+				printf( "ERROR: No Devices Found \n" );
 				return 0; }
 			devs = (device*) malloc( sizeof(device) * ndevs );
 			for( int i=0; i<ndevs; i++ ) {
@@ -59,25 +62,8 @@
 				devs[i].stream = 0;
 				devs[i].in_len = 0;
 				devs[i].out_len = 0;
-				devs[i].t0 = .0; }}
-
-		inline void tracks_write( device* dev, long long addr, float **in_data, unsigned long frameCount ){
-			int ofs = addr % hsize;
-			if( frameCount <= hsize -ofs ) {
-				for( int i=0; i< dev->nins; i++ ) {
-					memcpy(
-						dev->ins +i*hsize +ofs, in_data[i],
-						frameCount *ssize ); }}
-			else {
-				int x = ofs +frameCount -hsize;
-				for( int i=0; i< dev->nins; i++ ) {
-					memcpy(
-						dev->ins +i*hsize +ofs, in_data[i],
-						(frameCount -x) *ssize );
-					memcpy(
-						dev->ins +i*hsize, in_data[i]+x,
-						x *ssize ); }}
-			dev->in_len += frameCount; }
+				devs[i].t0 = .0; }
+			PaUtil_InitializeClock(); }
 
 		PaStreamCallbackResult device_tick(
 			const void **input,
@@ -86,7 +72,8 @@
 			const PaStreamCallbackTimeInfo *timeInfo,
 			PaStreamCallbackFlags statusFlags,
 			void *userData ) {
-					double t = PaUtil_GetTime();
+			
+			double t = PaUtil_GetTime();
 
 			device* dev = (device*) userData;
 			float **in_data = input;
@@ -96,7 +83,16 @@
 				dev->t0 = t;
 
 			if( input ) {
-				tracks_write( dev, dev->in_len, in_data, frameCount ); }
+				int ofs = dev->in_len % hsize;
+				if( frameCount <= hsize -ofs ) {
+					for( int i=0; i< dev->nins; i++ ) {
+						memcpy( dev->ins +i*hsize +ofs, in_data[i], frameCount *ssize ); }}
+				else {
+					int x = ofs +frameCount -hsize;
+					for( int i=0; i< dev->nins; i++ ) {
+						memcpy( dev->ins +i*hsize +ofs, in_data[i], (frameCount -x) *ssize );
+						memcpy( dev->ins +i*hsize, in_data[i]+x, x *ssize ); }}
+				dev->in_len += frameCount; }
 				
 			if( output ) {				
 				for( int dc=0; dc<dev->nouts; dc++ ) {
@@ -114,7 +110,7 @@
 
 					long long src;
 					
-					if( dev->outs[dc].last_src == -1 ) {
+					if( dev->outs[dc].last_src == 0 ) {
 						src = devs[sd].in_len -frameCount*2; }
 					else {
 						src = dev->outs[dc].last_src; }
@@ -129,18 +125,11 @@
 					
 					int ofs = src % hsize;
 					if( ofs +frameCount <= hsize ) {
-						memcpy(
-							out_data[dc], devs[sd].ins +sc*hsize +ofs,
-							frameCount *ssize ); }
+						memcpy( out_data[dc], devs[sd].ins +sc*hsize +ofs, frameCount *ssize ); }
 					else {
 						int x = ofs +frameCount -hsize;
-						memcpy(
-							out_data[dc], devs[sd].ins +sc*hsize +ofs,
-							x*ssize );
-						memcpy(
-							out_data[dc] +x, devs[sd].ins +sc*hsize,
-							(frameCount -x)*ssize ); }
-							
+						memcpy( out_data[dc], devs[sd].ins +sc*hsize +ofs, x*ssize );
+						memcpy( out_data[dc] +x, devs[sd].ins +sc*hsize, (frameCount -x)*ssize ); }
 					dev->outs[dc].last_src = src +frameCount; }
 						
 				dev->out_len += frameCount; }
@@ -193,8 +182,7 @@
 			if( !devs[sd].stream ) use_device( &devs[sd] );
 			if( !devs[dd].stream ) use_device( &devs[dd] );
 			devs[dd].outs[dc].sd = sd;
-			devs[dd].outs[dc].sc = sc;
-			devs[dd].outs[dc].last_src = -1; }
+			devs[dd].outs[dc].sc = sc; }
 
 		void list() {
 			char s1[4], s2[4];		
