@@ -94,7 +94,7 @@
 				if( max_in_asize < frameCount )
 					max_in_asize = frameCount; }
 				
-			if( output )
+			if( output ){
 				for( int dc=0; dc<dev->nouts; dc++ ){
 					int dd = dev->id;
 					int sd = dev->outs[dc].sd;
@@ -135,7 +135,7 @@
 				if( dev->t0 == 0.0 )
 					dev->t0 = PaUtil_GetTime();
 				if( max_out_asize < frameCount )
-					max_out_asize = frameCount;
+					max_out_asize = frameCount; }
 
 			return paContinue; }
 				
