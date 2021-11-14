@@ -100,9 +100,9 @@
 					int sd = dev->outs[dc].sd;
 					int sc = dev->outs[dc].sc;
 					
-					if( !sd )
-						// TODO: zeromem
-						continue;
+					if( !sd ){
+						memset( out_data[dc], 0, frameCount*ssize );
+						continue; }
 					
 					if( !devs[sd].in_len ){
 						printf( "%d waiting %d to start \n", dd, sd );
