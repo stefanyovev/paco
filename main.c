@@ -110,7 +110,7 @@
 
 					long long src;
 					if( dev->outs[dc].last_src == 0 )
-						src = devs[sd].in_len -frameCount*2;
+						src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) -max_in_asize -max_out_asize -50;
 					else
 						src = dev->outs[dc].last_src;
 						
