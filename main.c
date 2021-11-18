@@ -17,7 +17,7 @@
 		double stime = 1.0 / SR;		// sample duration [seconds]
 		int ssize = sizeof(float);		// sample size [bytes]
 		int asize = 1000;				// desired callback argument size (latency) [samples]
-		int hsize = SR*2;				// history size [samples]
+		int hsize = 3000;				// history size [samples]
 		int max_in_asize = 0;			// max rec latency [samples]
 		int max_out_asize = 0;			// max play latency [samples]
 
@@ -82,12 +82,12 @@
 				int ofs = dev->in_len % hsize;
 				if( frameCount <= hsize -ofs )
 					for( int i=0; i< dev->nins; i++ )
-						memcpy( dev->ins +i*hsize +ofs, in_data[i], frameCount *ssize ); 
+						memcpy( dev->ins +i*hsize +ofs, in_data[i], frameCount*ssize ); 
 				else {
 					int x = ofs +frameCount -hsize;
 					for( int i=0; i< dev->nins; i++ ){
-						memcpy( dev->ins +i*hsize +ofs, in_data[i], (frameCount -x) *ssize );
-						memcpy( dev->ins +i*hsize, in_data[i]+x, x *ssize ); }}
+						memcpy( dev->ins +i*hsize +ofs, in_data[i], (frameCount-x)*ssize );
+						memcpy( dev->ins +i*hsize, in_data[i]+(frameCount-x), x*ssize ); }}
 				dev->in_len += frameCount;
 				if( dev->t0 == 0.0 )
 					dev->t0 = PaUtil_GetTime();
@@ -123,11 +123,11 @@
 					
 					int ofs = src % hsize;
 					if( ofs +frameCount <= hsize )
-						memcpy( out_data[dc], devs[sd].ins +sc*hsize +ofs, frameCount *ssize );
+						memcpy( out_data[dc], devs[sd].ins +sc*hsize +ofs, frameCount*ssize );
 					else {
 						int x = ofs +frameCount -hsize;
-						memcpy( out_data[dc], devs[sd].ins +sc*hsize +ofs, x*ssize );
-						memcpy( out_data[dc] +x, devs[sd].ins +sc*hsize, (frameCount -x)*ssize ); }
+						memcpy( out_data[dc], devs[sd].ins +sc*hsize +ofs, (frameCount-x)*ssize );
+						memcpy( out_data[dc]+(frameCount-x), devs[sd].ins +sc*hsize, x*ssize ); }
 						
 					dev->outs[dc].last_src = src +frameCount; }
 						
