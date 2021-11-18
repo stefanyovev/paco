@@ -13,11 +13,11 @@
 
 		#define SR 44100
 		
-		int srate = SR;					// sample rate [samples/second]
+		int srate = SR;				// sample rate [samples/second]
 		double stime = 1.0 / SR;		// sample duration [seconds]
 		int ssize = sizeof(float);		// sample size [bytes]
-		int asize = 1000;				// desired callback argument size (latency) [samples]
-		int hsize = 3000;				// history size [samples]
+		int asize = 1000;			// desired callback argument size (latency) [samples]
+		int hsize = SR;				// history size [samples]
 		int max_in_asize = 0;			// max rec latency [samples]
 		int max_out_asize = 0;			// max play latency [samples]
 
