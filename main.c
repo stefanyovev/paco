@@ -13,13 +13,12 @@
 
 		#define SR 44100
 		
-		int srate = SR;				// sample rate [samples/second]
+		int srate = SR;					// sample rate [samples/second]
 		double stime = 1.0 / SR;		// sample duration [seconds]
 		int ssize = sizeof(float);		// sample size [bytes]
-		int asize = 1000;			// desired callback argument size (latency) [samples]
-		int hsize = SR;				// history size [samples]
-		int max_in_asize = 0;			// max rec latency [samples]
-		int max_out_asize = 0;			// max play latency [samples]
+		int asize = 1000;				// desired callback argument size (latency) [samples]
+		int hsize = SR;					// history size [samples]
+		int latency;					// max route rec+play latency [samples]
 
 		struct route {
 			int sd, sc;
@@ -33,9 +32,10 @@
 			float *ins;
 			route *outs;
 			PaStream *stream;
-			const PaStreamInfo *stream_info;
 			double t0, t;
-			long long in_len, out_len; };
+			long long in_len, out_len;
+			int max_in_asize;
+			int max_out_asize; };
 		typedef struct device device;
 
 		device *devs = 0;
@@ -59,6 +59,8 @@
 				memset( devs[i].ins, 0, devs[i].nins * hsize * ssize );
 				devs[i].outs = (route*) malloc( devs[i].nouts * sizeof( route ) );
 				memset( devs[i].outs, 0, devs[i].nouts * sizeof( route ) );
+				devs[i].max_in_asize = 0;
+				devs[i].max_out_asize = 0;
 				devs[i].stream = 0;
 				devs[i].in_len = 0;
 				devs[i].out_len = 0;
@@ -89,10 +91,8 @@
 						memcpy( dev->ins +i*hsize +ofs, in_data[i], (frameCount-x)*ssize );
 						memcpy( dev->ins +i*hsize, in_data[i]+(frameCount-x), x*ssize ); }}
 				dev->in_len += frameCount;
-				if( dev->t0 == 0.0 )
-					dev->t0 = PaUtil_GetTime();
-				if( max_in_asize < frameCount )
-					max_in_asize = frameCount; }
+				if( dev->max_in_asize < frameCount )
+					dev->max_in_asize = frameCount; }
 				
 			if( output ){
 				for( int dc=0; dc<dev->nouts; dc++ ){
@@ -109,8 +109,15 @@
 						continue; }
 
 					long long src;
-					if( dev->outs[dc].last_src == 0 )
-						src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) -max_in_asize -max_out_asize -50;
+					if( dev->outs[dc].last_src == 0 ){
+						int lat = devs[sd].max_in_asize +dev->max_out_asize;
+						if( lat > latency ){
+							latency = lat;
+							for( int i; i<ndevs; i++)
+								if( devs[i].nouts && devs[i].stream )
+									for( int j; j<devs[i].nouts; j++)
+										devs[i].outs[j].last_src = 0; }
+						src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) -latency -50; }
 					else
 						src = dev->outs[dc].last_src;
 						
@@ -132,15 +139,16 @@
 					dev->outs[dc].last_src = src +frameCount; }
 						
 				dev->out_len += frameCount;
-				if( dev->t0 == 0.0 )
-					dev->t0 = PaUtil_GetTime();
-				if( max_out_asize < frameCount )
-					max_out_asize = frameCount; }
+				if( dev->max_out_asize < frameCount )
+					dev->max_out_asize = frameCount; }
+					
+			if( dev->t0 == 0.0 )
+				dev->t0 = PaUtil_GetTime();
 
 			return paContinue; }
 				
-		void use_device( device *dev ) {
-			printf( "%d starting \n", dev->id );
+		int use_device( device *dev ) {
+			printf( "%d starting ... ", dev->id );
 		
 			static PaStreamParameters in_params;
 			in_params.device = dev->id;
@@ -160,22 +168,34 @@
 				&(dev->stream), dev->nins ? &in_params : 0, dev->nouts ? &out_params : 0,
 				srate, paFramesPerBufferUnspecified, paClipOff|paDitherOff,
 				&device_tick, dev );
-			if( err != paNoError ) {
+			if( err != paNoError ){
 				if( err != paUnanticipatedHostError ) {
-					printf( "ERROR 1: %s \n", Pa_GetErrorText( err ) ); }
+					printf( "ERROR 1: %s \n", Pa_GetErrorText( err ) );
+					return 0; }
 				else {
 					const PaHostErrorInfo* herr = Pa_GetLastHostErrorInfo();
-					printf( "ERROR 2: %s \n", herr->errorText ); }}
+					printf( "ERROR 2: %s \n", herr->errorText );
+					return 0; }}
 			
 			err = Pa_StartStream( dev->stream );
-			if( err != paNoError ) {
-				printf( "ERROR 3: %s \n", Pa_GetErrorText( err ) ); }}
+			if( err != paNoError ){
+				printf( "ERROR 3: %s \n", Pa_GetErrorText( err ) );
+				return 0; }
+			else {
+				while( dev->t0 == 0.0 );
+				printf( "ok \n", dev->id );
+				return 1; }}
 
 		int route_add( int sd, int sc, int dd, int dc ) {
 			if( !devs[sd].stream ) use_device( &devs[sd] );
 			if( !devs[dd].stream ) use_device( &devs[dd] );
+			if( !devs[sd].stream || !devs[dd].stream )
+				return 0;
 			devs[dd].outs[dc].sd = sd;
-			devs[dd].outs[dc].sc = sc; }
+			devs[dd].outs[dc].sc = sc;
+			while( devs[dd].outs[dc].last_src == 0 );
+			printf( "route %d %d %d %d latency %d \n", sd, sc, dd, dc, latency );
+			return 1; }
 
 		void list() {
 			char s1[4], s2[4];		
@@ -205,9 +225,9 @@
 				"\n\t  "
 				"\n\t syntax: SRCDEV SRCCHAN DSTDEV DSTCHAN "
 				"\n\t examples: "
-				"\n\t\t 0 1 0 1 "
-				"\n\t\t 22 7 1 1 "
-				"\n\t\t 22 7 1 2 "
+				"\n\t\t 0 0 1 0 "
+				"\n\t\t 85 0 82 0 "
+				"\n\t\t 85 1 82 1 "
 				"\n\t  "
 				"\n\t type 'q' to exit "
 				"\n  "
