@@ -23,7 +23,7 @@
 		int latency;					// max route rec+play latency [samples]
 
 		struct route {
-			int sd, sc;
+			int sd, sc, delay;
 			long long last_src; };
 		typedef struct route route;
 
@@ -96,12 +96,13 @@
 				dev->in_len += frameCount;
 				if( dev->max_in_asize < frameCount )
 					dev->max_in_asize = frameCount; }
-				
+			
 			if( output ){
 				for( int dc=0; dc<dev->nouts; dc++ ){
 					int dd = dev->id;
 					int sd = dev->outs[dc].sd;
 					int sc = dev->outs[dc].sc;
+					// int delay = dev->outs[dc].delay;
 					
 					if( !sd ){
 						memset( out_data[dc], 0, frameCount*ssize );
@@ -120,13 +121,13 @@
 								if( devs[i].nouts && devs[i].stream )
 									for( int j; j<devs[i].nouts; j++)
 										devs[i].outs[j].last_src = 0; }
-						src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) -latency -50;
-						printf( "route %d %d %d %d latency %d \n", sd, sc, dd, dc, latency ); }
+						src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) -latency -dev->outs[dc].delay;
+						printf( "route %d %d %d %d latency %d delay %d \n", sd, sc, dd, dc, latency, dev->outs[dc].delay ); }
 					else
 						src = dev->outs[dc].last_src;
 						
 					if( src < 0  ){
-						printf( "%d buffering %d src %d t-t0 %d t %10.10f \n", dd, sd, src, (int)(ceil( (PaUtil_GetTime() -devs[sd].t0) /stime )), PaUtil_GetTime() );
+						printf( "%d buffering %d src %d \n", dd, sd, src );
 						continue; }
 					if( src +frameCount > devs[sd].in_len ){
 						printf( "%d wants to read %d future unsaved samples from %d \n", dd, src +frameCount -devs[sd].in_len, sd );
@@ -196,13 +197,14 @@
 			printf( "ok \n" );
 			return OK; }
 
-		int route_add( int sd, int sc, int dd, int dc ) {
+		int route_add( int sd, int sc, int dd, int dc, int d ) {
+			devs[dd].outs[dc].sd = sd;
+			devs[dd].outs[dc].sc = sc;
+			devs[dd].outs[dc].delay = d;
 			if( !devs[sd].stream ) use_device( &devs[sd] );
 			if( !devs[dd].stream ) use_device( &devs[dd] );
 			if( !devs[sd].stream || !devs[dd].stream )
 				return FAIL;
-			devs[dd].outs[dc].sd = sd;
-			devs[dd].outs[dc].sc = sc;
 			while( devs[dd].outs[dc].last_src == 0 );
 			return OK; }
 
@@ -232,9 +234,9 @@
 				"\n\t ssize %d bytes "
 				"\n\t stime %5.10f seconds "
 				"\n\t  "
-				"\n\t syntax: SRCDEV SRCCHAN DSTDEV DSTCHAN "
+				"\n\t syntax: SRCDEV SRCCHAN DSTDEV DSTCHAN [DELAYSAMPLES]"
 				"\n\t examples: "
-				"\n\t\t 0 0 1 0 "
+				"\n\t\t 0 0 1 0 5000"
 				"\n\t\t 85 0 82 0 "
 				"\n\t\t 85 1 82 1 "
 				"\n\t  "
@@ -244,19 +246,24 @@
 				srate, asize, hsize, ssize, stime );
 
 			char cmd[1000] = "";
-			int sd, sc, dd, dc;
+			int sd, sc, dd, dc, d;
 			
-			while( 1 ) {
+			while( 1 ){
 				
 				printf( "\t] " );
 				gets( cmd );
 
-				if( strcmp( cmd, "q" ) == 0 ) {
-					return OK; }
+				if( strcmp( cmd, "q" ) == 0 )
+					return OK;
 
-				else if( strcmp( cmd, "l" ) == 0 ) {
-					list(); }
+				else if( strcmp( cmd, "l" ) == 0 )
+					list();
 
-				else if( sscanf( cmd, "%d %d %d %d", &sd, &sc, &dd, &dc ) == 4 ) {
-					route_add( sd, sc, dd, dc ); }}
+				else if( sscanf( cmd, "%d %d %d %d %d", &sd, &sc, &dd, &dc, &d ) == 5 )
+					route_add( sd, sc, dd, dc, d );
+					
+				else if( sscanf( cmd, "%d %d %d %d", &sd, &sc, &dd, &dc ) == 4 )
+					route_add( sd, sc, dd, dc, 0 );
+
+			}
 		}
