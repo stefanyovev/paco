@@ -1,17 +1,19 @@
 
-
 		#define title "Portable Audio Console"
 
 		#include <stdio.h>
 		#include <stdlib.h>
 		#include <string.h>
 		#include <math.h>
-		
+
 		#include <portaudio.h>
-		void PaUtil_InitializeClock( void );
 		double PaUtil_GetTime( void );
+		void PaUtil_InitializeClock( void );
 
 		#define SR 44100
+
+		#define FAIL 1
+		#define OK 0
 		
 		int srate = SR;					// sample rate [samples/second]
 		double stime = 1.0 / SR;		// sample duration [seconds]
@@ -23,7 +25,7 @@
 		struct route {
 			int sd, sc;
 			long long last_src; };
-		typedef struct route route;	
+		typedef struct route route;
 
 		struct device {
 			int id;
@@ -42,15 +44,16 @@
 		int ndevs = 0;
 
 		int init() {
-			if( Pa_Initialize() ) {
+			if( Pa_Initialize() ){
 				printf( "ERROR: Pa_Initialize rubbish \n" );
-				return 0; }
+				return FAIL; }
 			ndevs = Pa_GetDeviceCount();
 			if( ndevs <= 0 ) {
 				printf( "ERROR: No Devices Found \n" );
-				return 0; }
+				return FAIL; }
+			PaUtil_InitializeClock();
 			devs = (device*) malloc( sizeof(device) * ndevs );
-			for( int i=0; i<ndevs; i++ ) {
+			for( int i=0; i<ndevs; i++ ){
 				devs[i].id = i;
 				devs[i].info = Pa_GetDeviceInfo( i );
 				devs[i].nins = devs[i].info->maxInputChannels;
@@ -65,7 +68,7 @@
 				devs[i].in_len = 0;
 				devs[i].out_len = 0;
 				devs[i].t0 = 0.0; }
-			PaUtil_InitializeClock(); }
+			return OK; }
 
 		PaStreamCallbackResult device_tick(
 			const void **input,
@@ -117,7 +120,8 @@
 								if( devs[i].nouts && devs[i].stream )
 									for( int j; j<devs[i].nouts; j++)
 										devs[i].outs[j].last_src = 0; }
-						src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) -latency -50; }
+						src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) -latency -50;
+						printf( "route %d %d %d %d latency %d \n", sd, sc, dd, dc, latency ); }
 					else
 						src = dev->outs[dc].last_src;
 						
@@ -135,7 +139,12 @@
 						int x = ofs +frameCount -hsize;
 						memcpy( out_data[dc], devs[sd].ins +sc*hsize +ofs, (frameCount-x)*ssize );
 						memcpy( out_data[dc]+(frameCount-x), devs[sd].ins +sc*hsize, x*ssize ); }
-						
+					
+					// output effect:
+					//double t = dev->outs[dc].last_src*stime;
+					//for( int i=0; i<frameCount; i++, t+=stime )
+					//	out_data[dc][i] = 0.2*out_data[dc][i] +0.8*out_data[dc][i]*sin( t*3.0 ); // +0.1*sin(t*3500.0);
+					
 					dev->outs[dc].last_src = src +frameCount; }
 						
 				dev->out_len += frameCount;
@@ -164,38 +173,38 @@
 			out_params.suggestedLatency = asize *stime;
 			out_params.channelCount = dev->nouts;
 			
-			PaError err = Pa_OpenStream(
-				&(dev->stream), dev->nins ? &in_params : 0, dev->nouts ? &out_params : 0,
-				srate, paFramesPerBufferUnspecified, paClipOff|paDitherOff,
+			PaError err = Pa_OpenStream( &(dev->stream),
+				dev->nins ? &in_params : 0, dev->nouts ? &out_params : 0, srate,
+				paFramesPerBufferUnspecified, paClipOff|paDitherOff,
 				&device_tick, dev );
+
 			if( err != paNoError ){
 				if( err != paUnanticipatedHostError ) {
 					printf( "ERROR 1: %s \n", Pa_GetErrorText( err ) );
-					return 0; }
+					return FAIL; }
 				else {
 					const PaHostErrorInfo* herr = Pa_GetLastHostErrorInfo();
 					printf( "ERROR 2: %s \n", herr->errorText );
-					return 0; }}
+					return FAIL; }}
 			
 			err = Pa_StartStream( dev->stream );
 			if( err != paNoError ){
 				printf( "ERROR 3: %s \n", Pa_GetErrorText( err ) );
-				return 0; }
-			else {
-				while( dev->t0 == 0.0 );
-				printf( "ok \n", dev->id );
-				return 1; }}
+				return FAIL; }
+
+			while( dev->t0 == 0.0 );
+			printf( "ok \n" );
+			return OK; }
 
 		int route_add( int sd, int sc, int dd, int dc ) {
 			if( !devs[sd].stream ) use_device( &devs[sd] );
 			if( !devs[dd].stream ) use_device( &devs[dd] );
 			if( !devs[sd].stream || !devs[dd].stream )
-				return 0;
+				return FAIL;
 			devs[dd].outs[dc].sd = sd;
 			devs[dd].outs[dc].sc = sc;
 			while( devs[dd].outs[dc].last_src == 0 );
-			printf( "route %d %d %d %d latency %d \n", sd, sc, dd, dc, latency );
-			return 1; }
+			return OK; }
 
 		void list() {
 			char s1[4], s2[4];		
@@ -209,7 +218,7 @@
 
 		int main( int agrc, char* argv ) {			
 			printf( "\n\t%s\n\n", title );
-			if( !init() ) return 1;
+			if( init() ) return FAIL;
 			
 			const PaVersionInfo *vi = Pa_GetVersionInfo();
 			printf( "%s\n\n", vi->versionText );
@@ -243,10 +252,11 @@
 				gets( cmd );
 
 				if( strcmp( cmd, "q" ) == 0 ) {
-					return 0; }
+					return OK; }
 
 				else if( strcmp( cmd, "l" ) == 0 ) {
 					list(); }
 
 				else if( sscanf( cmd, "%d %d %d %d", &sd, &sc, &dd, &dc ) == 4 ) {
-					route_add( sd, sc, dd, dc ); }}}
+					route_add( sd, sc, dd, dc ); }}
+		}
