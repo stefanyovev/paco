@@ -150,11 +150,11 @@
 					else {
 						int x = ofs +frameCount -hsize;
 						memcpy( devs[sd].ins +sc*csize +tsize +hsize, devs[sd].ins +sc*csize +tsize, x*ssize ); }
-					for( int n=0; n<frameCount; n++ )
-						out_data[dc][n] =
-							k[0]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n )  ) +
-							k[1]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n -1 )  ) +
-							k[2]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n -2 )  );
+					float *sig = devs[sd].ins +sc*csize +tsize +ofs;
+					for( int n=0; n<frameCount; n++ ){
+						out_data[dc][n] = 0.0;
+						for( int kn=0; kn<ksize; kn++ )
+							out_data[dc][n] += k[kn]*sig[n-kn]; }
 					dev->outs[dc].last_src = src +frameCount; }
 						
 				dev->out_len += frameCount;
