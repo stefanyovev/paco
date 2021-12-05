@@ -24,8 +24,8 @@
 		int csize = 0; //tsize+hsize+3*asize; // input channel struct size [samples]
 		int latency;					// max route rec+play latency [samples]
 
-		float k[3] = {1.0, 0.0, 0.0};
-		int ksize = 3;
+		float k[10] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+		int ksize = 10;
 
 		struct route {
 			int sd, sc, delay;
@@ -137,24 +137,22 @@
 					if( src < 0  ){
 						printf( "%d buffering %d src %d \n", dd, sd, src );
 						continue; }
+
 					if( src +frameCount > devs[sd].in_len ){
 						printf( "%d wants to read %d future unsaved samples from %d \n", dd, src +frameCount -devs[sd].in_len, sd );
 						continue; }
 						
-					// signal s[n], output [n] = b0 * s [n] + b1 * s [n-1] + ... + b9 * s [n - 9]
 					int ofs = src % hsize;
-					if( ofs +frameCount <= hsize ){
-						if( ofs -tsize <= 0 ){
-							// x = tsize -ofs
-							memcpy( devs[sd].ins +sc*csize +ofs, devs[sd].ins +sc*csize +hsize +ofs, (tsize-ofs)*ssize ); }}
-					else {
-						int x = ofs +frameCount -hsize;
-						memcpy( devs[sd].ins +sc*csize +tsize +hsize, devs[sd].ins +sc*csize +tsize, x*ssize ); }
+					if( ofs +frameCount > hsize )
+						memcpy( devs[sd].ins +sc*csize +tsize +hsize, devs[sd].ins +sc*csize +tsize, (ofs +frameCount -hsize)*ssize );
+					else if( ofs -tsize < 0 )
+						memcpy( devs[sd].ins +sc*csize +ofs, devs[sd].ins +sc*csize +hsize +ofs, (tsize-ofs)*ssize );
 					float *sig = devs[sd].ins +sc*csize +tsize +ofs;
 					for( int n=0; n<frameCount; n++ ){
 						out_data[dc][n] = 0.0;
 						for( int kn=0; kn<ksize; kn++ )
 							out_data[dc][n] += k[kn]*sig[n-kn]; }
+
 					dev->outs[dc].last_src = src +frameCount; }
 						
 				dev->out_len += frameCount;
