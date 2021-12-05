@@ -19,8 +19,13 @@
 		double stime = 1.0 / SR;		// sample duration [seconds]
 		int ssize = sizeof(float);		// sample size [bytes]
 		int asize = 1000;				// desired callback argument size (latency) [samples]
+		int tsize = SR / 50;			// tail size [samples]
 		int hsize = SR;					// history size [samples]
+		int csize = 0; //tsize+hsize+3*asize; // input channel struct size [samples]
 		int latency;					// max route rec+play latency [samples]
+
+		float k[3] = {1.0, 0.0, 0.0};
+		int ksize = 3;
 
 		struct route {
 			int sd, sc, delay;
@@ -37,7 +42,9 @@
 			double t0, t;
 			long long in_len, out_len;
 			int max_in_asize;
-			int max_out_asize; };
+			int max_out_asize;
+			int using_input_front;
+			int using_input_back; };
 		typedef struct device device;
 
 		device *devs = 0;
@@ -53,12 +60,13 @@
 				return FAIL; }
 			PaUtil_InitializeClock();
 			devs = (device*) malloc( sizeof(device) * ndevs );
+			csize = tsize+hsize+3*asize;
 			for( int i=0; i<ndevs; i++ ){
 				devs[i].id = i;
 				devs[i].info = Pa_GetDeviceInfo( i );
 				devs[i].nins = devs[i].info->maxInputChannels;
 				devs[i].nouts = devs[i].info->maxOutputChannels;
-				devs[i].ins = (float*) malloc( devs[i].nins * hsize * ssize );
+				devs[i].ins = (float*) malloc( devs[i].nins * csize * ssize );
 				memset( devs[i].ins, 0, devs[i].nins * hsize * ssize );
 				devs[i].outs = (route*) malloc( devs[i].nouts * sizeof( route ) );
 				memset( devs[i].outs, 0, devs[i].nouts * sizeof( route ) );
@@ -87,12 +95,12 @@
 				int ofs = dev->in_len % hsize;
 				if( frameCount <= hsize -ofs )
 					for( int i=0; i< dev->nins; i++ )
-						memcpy( dev->ins +i*hsize +ofs, in_data[i], frameCount*ssize ); 
+						memcpy( dev->ins +i*csize +tsize +ofs, in_data[i], frameCount*ssize ); 
 				else {
 					int x = ofs +frameCount -hsize;
 					for( int i=0; i< dev->nins; i++ ){
-						memcpy( dev->ins +i*hsize +ofs, in_data[i], (frameCount-x)*ssize );
-						memcpy( dev->ins +i*hsize, in_data[i]+(frameCount-x), x*ssize ); }}
+						memcpy( dev->ins +i*csize +tsize +ofs, in_data[i], (frameCount-x)*ssize );
+						memcpy( dev->ins +i*csize +tsize, in_data[i]+(frameCount-x), x*ssize ); }}
 				dev->in_len += frameCount;
 				if( dev->max_in_asize < frameCount )
 					dev->max_in_asize = frameCount; }
@@ -101,7 +109,7 @@
 				for( int dc=0; dc<dev->nouts; dc++ ){
 					int dd = dev->id;
 					int sd = dev->outs[dc].sd;
-					int sc = dev->outs[dc].sc;
+					int sc = dev->outs[dc].sc; // source channel
 					// int delay = dev->outs[dc].delay;
 					
 					if( !sd ){
@@ -132,20 +140,25 @@
 					if( src +frameCount > devs[sd].in_len ){
 						printf( "%d wants to read %d future unsaved samples from %d \n", dd, src +frameCount -devs[sd].in_len, sd );
 						continue; }
-					
+						
+					// signal s[n], output [n] = b0 * s [n] + b1 * s [n-1] + ... + b9 * s [n - 9]
 					int ofs = src % hsize;
-					if( ofs +frameCount <= hsize )
-						memcpy( out_data[dc], devs[sd].ins +sc*hsize +ofs, frameCount*ssize );
+					if( ofs +frameCount <= hsize ){
+						if( ofs -tsize <= 0 ) // x = tsize -ofs
+							memcpy( devs[sd].ins +sc*csize +ofs, devs[sd].ins +sc*csize +hsize +ofs, (tsize-ofs)*ssize );
+						for( int n=0; n<frameCount; n++ )
+							out_data[dc][n] =
+								k[0]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n )  ) +
+								k[1]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n -1 )  ) +
+								k[2]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n -2 )  ); }
 					else {
 						int x = ofs +frameCount -hsize;
-						memcpy( out_data[dc], devs[sd].ins +sc*hsize +ofs, (frameCount-x)*ssize );
-						memcpy( out_data[dc]+(frameCount-x), devs[sd].ins +sc*hsize, x*ssize ); }
-					
-					// output effect:
-					//double t = dev->outs[dc].last_src*stime;
-					//for( int i=0; i<frameCount; i++, t+=stime )
-					//	out_data[dc][i] = 0.2*out_data[dc][i] +0.8*out_data[dc][i]*sin( t*3.0 ); // +0.1*sin(t*3500.0);
-					
+						memcpy( devs[sd].ins +sc*csize +tsize +hsize, devs[sd].ins +sc*csize +tsize, x*ssize );
+						for( int n=0; n<frameCount; n++ )
+							out_data[dc][n] =
+								k[0]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n )  ) +
+								k[1]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n -1 )  ) +
+								k[2]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n -2 )  ); }
 					dev->outs[dc].last_src = src +frameCount; }
 						
 				dev->out_len += frameCount;
