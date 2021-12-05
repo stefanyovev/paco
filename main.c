@@ -67,7 +67,7 @@
 				devs[i].nins = devs[i].info->maxInputChannels;
 				devs[i].nouts = devs[i].info->maxOutputChannels;
 				devs[i].ins = (float*) malloc( devs[i].nins * csize * ssize );
-				memset( devs[i].ins, 0, devs[i].nins * hsize * ssize );
+				memset( devs[i].ins, 0, devs[i].nins * csize * ssize );
 				devs[i].outs = (route*) malloc( devs[i].nouts * sizeof( route ) );
 				memset( devs[i].outs, 0, devs[i].nouts * sizeof( route ) );
 				devs[i].max_in_asize = 0;
@@ -144,21 +144,17 @@
 					// signal s[n], output [n] = b0 * s [n] + b1 * s [n-1] + ... + b9 * s [n - 9]
 					int ofs = src % hsize;
 					if( ofs +frameCount <= hsize ){
-						if( ofs -tsize <= 0 ) // x = tsize -ofs
-							memcpy( devs[sd].ins +sc*csize +ofs, devs[sd].ins +sc*csize +hsize +ofs, (tsize-ofs)*ssize );
-						for( int n=0; n<frameCount; n++ )
-							out_data[dc][n] =
-								k[0]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n )  ) +
-								k[1]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n -1 )  ) +
-								k[2]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n -2 )  ); }
+						if( ofs -tsize <= 0 ){
+							// x = tsize -ofs
+							memcpy( devs[sd].ins +sc*csize +ofs, devs[sd].ins +sc*csize +hsize +ofs, (tsize-ofs)*ssize ); }}
 					else {
 						int x = ofs +frameCount -hsize;
-						memcpy( devs[sd].ins +sc*csize +tsize +hsize, devs[sd].ins +sc*csize +tsize, x*ssize );
-						for( int n=0; n<frameCount; n++ )
-							out_data[dc][n] =
-								k[0]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n )  ) +
-								k[1]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n -1 )  ) +
-								k[2]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n -2 )  ); }
+						memcpy( devs[sd].ins +sc*csize +tsize +hsize, devs[sd].ins +sc*csize +tsize, x*ssize ); }
+					for( int n=0; n<frameCount; n++ )
+						out_data[dc][n] =
+							k[0]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n )  ) +
+							k[1]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n -1 )  ) +
+							k[2]*(  *( devs[sd].ins +sc*csize +tsize +ofs +n -2 )  );
 					dev->outs[dc].last_src = src +frameCount; }
 						
 				dev->out_len += frameCount;
