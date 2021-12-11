@@ -19,17 +19,18 @@
 		double stime = 1.0 / SR;		// sample duration [seconds]
 		int ssize = sizeof(float);		// sample size [bytes]
 		int asize = 1000;				// desired callback argument size (latency) [samples]
-		int tsize = SR / 50;			// tail size [samples]
+		int tsize = SR / 50;  // (50ms) // tail size [samples]
 		int hsize = SR;					// history size [samples]
 		int csize = 0; //tsize+hsize+3*asize; // input channel struct size [samples]
 		int latency;					// max route rec+play latency [samples]
 
-		float k[10] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-		int ksize = 10;
+		float k[1] = {1.0}; // default
 
 		struct route {
 			int sd, sc, delay;
-			long long last_src; };
+			long long last_src;
+			int ksize;
+			float* k; };
 		typedef struct route route;
 
 		struct device {
@@ -70,6 +71,9 @@
 				memset( devs[i].ins, 0, devs[i].nins * csize * ssize );
 				devs[i].outs = (route*) malloc( devs[i].nouts * sizeof( route ) );
 				memset( devs[i].outs, 0, devs[i].nouts * sizeof( route ) );
+				for( int j=0; j<devs[i].nouts; j++ ){
+					devs[i].outs[j].ksize = 1;
+					devs[i].outs[j].k = k; }
 				devs[i].max_in_asize = 0;
 				devs[i].max_out_asize = 0;
 				devs[i].stream = 0;
@@ -150,8 +154,8 @@
 					float *sig = devs[sd].ins +sc*csize +tsize +ofs;
 					for( int n=0; n<frameCount; n++ ){
 						out_data[dc][n] = 0.0;
-						for( int kn=0; kn<ksize; kn++ )
-							out_data[dc][n] += k[kn]*sig[n-kn]; }
+						for( int kn=0; kn<dev->outs[dc].ksize; kn++ )
+							out_data[dc][n] += dev->outs[dc].k[kn]*sig[n-kn]; }
 
 					dev->outs[dc].last_src = src +frameCount; }
 						
@@ -235,11 +239,12 @@
 			list();
 
 			printf(
+				
 				"\n\t srate %d samples/sec "
-				"\n\t asize %d samples "
-				"\n\t hsize %d samples "
 				"\n\t ssize %d bytes "
-				"\n\t stime %5.10f seconds "
+				"\n\t asize %d samples "
+				"\n\t tsize %d samples "
+				"\n\t hsize %d samples "
 				"\n\t  "
 				"\n\t syntax: SRCDEV SRCCHAN DSTDEV DSTCHAN [DELAYSAMPLES]"
 				"\n\t examples: "
@@ -250,7 +255,7 @@
 				"\n\t type 'q' to exit "
 				"\n  "
 				"\n  ",
-				srate, asize, hsize, ssize, stime );
+				srate, ssize, asize, tsize, hsize );
 
 			char cmd[1000] = "";
 			int sd, sc, dd, dc, d;
