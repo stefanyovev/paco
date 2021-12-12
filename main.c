@@ -22,7 +22,10 @@
 		int tsize = SR / 50;  // (50ms) // tail size [samples]
 		int hsize = SR;					// history size [samples]
 		int csize = 0; //tsize+hsize+3*asize; // input channel struct size [samples]
-		int latency;					// max route rec+play latency [samples]
+		
+		struct state {
+			int latency;					// max route rec+play latency [samples]
+		} state;
 
 		float k[1] = {1.0}; // default
 
@@ -45,13 +48,15 @@
 			int max_in_asize;
 			int max_out_asize;
 			int using_input_front;
-			int using_input_back; };
+			int using_input_back;
+			struct state *state; };
 		typedef struct device device;
 
 		device *devs = 0;
 		int ndevs = 0;
 
 		int init() {
+			state.latency = 0;
 			if( Pa_Initialize() ){
 				printf( "ERROR: Pa_Initialize rubbish \n" );
 				return FAIL; }
@@ -79,8 +84,15 @@
 				devs[i].stream = 0;
 				devs[i].in_len = 0;
 				devs[i].out_len = 0;
-				devs[i].t0 = 0.0; }
+				devs[i].t0 = 0.0;
+				devs[i].state = &state; }
 			return OK; }
+
+		inline void resync(){
+			for( int i; i<ndevs; i++)
+				if( devs[i].nouts && devs[i].stream )
+					for( int j; j<devs[i].nouts; j++)
+						devs[i].outs[j].last_src = 0; }
 
 		PaStreamCallbackResult device_tick(
 			const void **input,
@@ -127,14 +139,11 @@
 					long long src;
 					if( dev->outs[dc].last_src == 0 ){
 						int lat = devs[sd].max_in_asize +dev->max_out_asize;
-						if( lat > latency ){
-							latency = lat;
-							for( int i; i<ndevs; i++)
-								if( devs[i].nouts && devs[i].stream )
-									for( int j; j<devs[i].nouts; j++)
-										devs[i].outs[j].last_src = 0; }
-						src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) -latency -dev->outs[dc].delay;
-						printf( "route %d %d %d %d latency %d delay %d \n", sd, sc, dd, dc, latency, dev->outs[dc].delay ); }
+						if( lat > dev->state->latency ){
+							dev->state->latency = lat;
+							resync(); }
+						src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) -dev->state->latency -dev->outs[dc].delay;
+						printf( "route %d %d %d %d latency %d delay %d src %d \n", sd, sc, dd, dc, dev->state->latency, dev->outs[dc].delay, src ); }
 					else
 						src = dev->outs[dc].last_src;
 						
@@ -276,6 +285,9 @@
 					
 				else if( sscanf( cmd, "%d %d %d %d", &sd, &sc, &dd, &dc ) == 4 )
 					route_add( sd, sc, dd, dc, 0 );
+
+				else if( strcmp( cmd, "resync" ) == 0 )
+					resync();
 
 			}
 		}
