@@ -160,6 +160,7 @@
 						memcpy( devs[sd].ins +sc*csize +tsize +hsize, devs[sd].ins +sc*csize +tsize, (ofs +frameCount -hsize)*ssize );
 					else if( ofs -tsize < 0 )
 						memcpy( devs[sd].ins +sc*csize +ofs, devs[sd].ins +sc*csize +hsize +ofs, (tsize-ofs)*ssize );
+
 					float *sig = devs[sd].ins +sc*csize +tsize +ofs;
 					for( int n=0; n<frameCount; n++ ){
 						out_data[dc][n] = 0.0;
