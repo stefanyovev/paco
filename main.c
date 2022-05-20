@@ -25,9 +25,7 @@
 	int ssize = sizeof(float);		// sample size [bytes]
 	double stime = 1.0 / SR;		// sample duration [seconds]
 	
-	struct state {
-		int latency;					// max route rec+play latency [samples]
-	} state;
+	int worst_latency;			// max route rec+play latency [samples]
 
 	float k[1] = {1.0}; // default
 
@@ -51,14 +49,14 @@
 		int max_out_asize;
 		int using_input_front;
 		int using_input_back;
-		struct state *state; };
+		int *global_worst_latency; };
 	typedef struct device device;
 
 	device *devs = 0;
 	int ndevs = 0;
 
 	int init() {
-		state.latency = 0;
+		worst_latency = 0;
 		if( Pa_Initialize() ){
 			printf( "ERROR: Pa_Initialize rubbish \n" );
 			return FAIL; }
@@ -87,7 +85,7 @@
 			devs[i].in_len = 0;
 			devs[i].out_len = 0;
 			devs[i].t0 = 0.0;
-			devs[i].state = &state; }
+			devs[i].global_worst_latency = &worst_latency; }
 		return OK; }
 
 	inline void resync(){
@@ -141,11 +139,11 @@
 				long long src;
 				if( dev->outs[dc].last_src == 0 ){
 					int lat = devs[sd].max_in_asize +dev->max_out_asize;
-					if( lat > dev->state->latency ){
-						dev->state->latency = lat;
+					if( lat > *(dev->global_worst_latency) ){
+						*(dev->global_worst_latency) = lat;
 						resync(); }
-					src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) -dev->state->latency -dev->outs[dc].delay;
-					printf( "route %d %d %d %d latency %d delay %d src %d \n", sd, sc, dd, dc, dev->state->latency, dev->outs[dc].delay, src ); }
+					src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) - (*(dev->global_worst_latency)) -dev->outs[dc].delay;
+					printf( "route %d %d %d %d latency %d delay %d src %d \n", sd, sc, dd, dc, dev->global_worst_latency, dev->outs[dc].delay, src ); }
 				else
 					src = dev->outs[dc].last_src;
 					
