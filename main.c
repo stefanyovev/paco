@@ -30,7 +30,7 @@
 	float k[1] = {1.0}; // default
 
 	struct route {
-		int sd, sc, delay;
+		int sd, sc, delay, new_delay;
 		long long last_src;
 		int ksize;
 		float* k; };
@@ -141,10 +141,16 @@
 						*(dev->global_worst_latency) = lat;
 						resync(); }
 					src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) - (*(dev->global_worst_latency)) -dev->outs[dc].delay;
-					printf( "route %d %d %d %d latency %d delay %d src %d \n", sd, sc, dd, dc, dev->global_worst_latency, dev->outs[dc].delay, src ); }
+					printf( "route %d %d %d %d latency %d delay %d src %d \n", sd, sc, dd, dc, *(dev->global_worst_latency), dev->outs[dc].delay, src ); }
 				else
 					src = dev->outs[dc].last_src;
-					
+				
+				if( dev->outs[dc].new_delay ){
+					src -= dev->outs[dc].new_delay -dev->outs[dc].delay;
+					dev->outs[dc].delay = dev->outs[dc].new_delay;
+					dev->outs[dc].new_delay = 0;
+					printf( " %d %d %d %d delay now %d \n", sd, sc, dd, dc, dev->outs[dc].delay ); }
+				
 				if( src < 0  ){
 					printf( "%d buffering %d src %d \n", dd, sd, src );
 					continue; }
@@ -217,6 +223,10 @@
 		return OK; }
 
 	int route_add( int sd, int sc, int dd, int dc, int d ) {
+		if( devs[dd].outs[dc].sd == sd && devs[dd].outs[dc].sc == sc ){
+			if( devs[dd].outs[dc].delay != d )
+				devs[dd].outs[dc].new_delay = d;
+			return OK; }
 		devs[dd].outs[dc].sd = sd;
 		devs[dd].outs[dc].sc = sc;
 		devs[dd].outs[dc].delay = d;
@@ -224,7 +234,7 @@
 		if( !devs[dd].stream ) use_device( &devs[dd] );
 		if( !devs[sd].stream || !devs[dd].stream )
 			return FAIL;
-		while( devs[dd].outs[dc].last_src == 0 );
+		while( devs[dd].outs[dc].last_src == 0 ); // wait all to play
 		return OK; }
 
 	void list() {
