@@ -131,7 +131,7 @@
 					continue; }
 				
 				if( !devs[sd].in_len ){
-					printf( "%d waiting %d to start \n", dd, sd );
+					printf( "%d waiting %d to start \n\t] ", dd, sd );
 					continue; }
 
 				long long src;
@@ -141,7 +141,7 @@
 						*(dev->global_worst_latency) = lat;
 						resync(); }
 					src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) - (*(dev->global_worst_latency)) -dev->outs[dc].delay;
-					printf( "route %d %d %d %d latency %d delay %d src %d \n", sd, sc, dd, dc, *(dev->global_worst_latency), dev->outs[dc].delay, src ); }
+					printf( "route %d %d %d %d latency %d delay %d src %d \n\t] ", sd, sc, dd, dc, *(dev->global_worst_latency), dev->outs[dc].delay, src ); }
 				else
 					src = dev->outs[dc].last_src;
 				
@@ -149,14 +149,14 @@
 					src -= dev->outs[dc].new_delay -dev->outs[dc].delay;
 					dev->outs[dc].delay = dev->outs[dc].new_delay;
 					dev->outs[dc].new_delay = 0;
-					printf( " %d %d %d %d delay now %d \n", sd, sc, dd, dc, dev->outs[dc].delay ); }
+					printf( "%d %d %d %d delay now %d \n\t] ", sd, sc, dd, dc, dev->outs[dc].delay ); }
 				
 				if( src < 0  ){
-					printf( "%d buffering %d src %d \n", dd, sd, src );
+					printf( "%d buffering %d src %d \n\t] ", dd, sd, src );
 					continue; }
 
 				if( src +frameCount > devs[sd].in_len ){
-					printf( "%d wants to read %d future unsaved samples from %d \n", dd, src +frameCount -devs[sd].in_len, sd );
+					printf( "%d %d %d %d wants to read %d future unsaved samples \n\t] ", sd, sc, dd, dc, src +frameCount -devs[sd].in_len );
 					continue; }
 					
 				int ofs = src % hsize;
@@ -183,7 +183,7 @@
 		return paContinue; }
 			
 	int use_device( device *dev ) {
-		printf( "%d starting ... ", dev->id );
+		printf( "%d starting ... \n\t] ", dev->id );
 	
 		static PaStreamParameters in_params;
 		in_params.device = dev->id;
@@ -206,20 +206,20 @@
 
 		if( err != paNoError ){
 			if( err != paUnanticipatedHostError ) {
-				printf( "ERROR 1: %s \n", Pa_GetErrorText( err ) );
+				printf( "ERROR 1: %s \n\t] ", Pa_GetErrorText( err ) );
 				return FAIL; }
 			else {
 				const PaHostErrorInfo* herr = Pa_GetLastHostErrorInfo();
-				printf( "ERROR 2: %s \n", herr->errorText );
+				printf( "ERROR 2: %s \n\t] ", herr->errorText );
 				return FAIL; }}
 		
 		err = Pa_StartStream( dev->stream );
 		if( err != paNoError ){
-			printf( "ERROR 3: %s \n", Pa_GetErrorText( err ) );
+			printf( "ERROR 3: %s \n\t] ", Pa_GetErrorText( err ) );
 			return FAIL; }
 
 		while( dev->t0 == 0.0 );
-		printf( "ok \n" );
+		printf( "ok \n\t] " );
 		return OK; }
 
 	int route_add( int sd, int sc, int dd, int dc, int d ) {
@@ -256,9 +256,7 @@
 		
 		list();
 
-		printf(
-			
-			"\n\t srate %d samples/sec "
+		printf( "\n\t srate %d samples/sec "
 			"\n\t ssize %d bytes "
 			"\n\t asize %d samples "
 			"\n\t tsize %d samples "
@@ -275,13 +273,15 @@
 			"\n  ",
 			srate, ssize, asize, tsize, hsize );
 
+		printf( "\t] " );
+		
 		char cmd[1000] = "";
 		int sd, sc, dd, dc, d;
 		
 		while( 1 ){
-			
-			printf( "\t] " );
+		
 			gets( cmd );
+			printf( "\t] " );
 
 			if( strcmp( cmd, "q" ) == 0 )
 				return OK;
