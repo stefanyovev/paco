@@ -47,8 +47,6 @@
 		long long in_len, out_len;
 		int max_in_asize;
 		int max_out_asize;
-		int using_input_front;
-		int using_input_back;
 		int *global_worst_latency; };
 	typedef struct device device;
 
