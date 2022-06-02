@@ -12,4 +12,4 @@ install vb audio vb cable or other virtual audio cable and make it the default w
 
 tested on windows 10
 
-todos: uptime prompt, status cmd, does it miss buffer when wants future
+todos: uptime prompt, status cmd
