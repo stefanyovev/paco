@@ -154,12 +154,17 @@
 				if( src < 0  ){
 					printf( "%d buffering %d src %d \n\t] ", dd, sd, src );
 					continue; }
-
+				
+				int wtf;
 				if( src +frameCount > devs[sd].in_len ){
-					printf( "%d %d %d %d wants to read %d future unsaved samples \n\t] ", sd, sc, dd, dc, src +frameCount -devs[sd].in_len );
-					continue; }
+					wtf = src +frameCount -devs[sd].in_len;
+					printf( "%d %d %d %d wants to read %d future unsaved samples. will give wtf. \n\t] ", sd, sc, dd, dc, wtf );
 					
-				int ofs = src % hsize;
+				} else
+					wtf = 0;
+					
+				int ofs = (src -wtf) % hsize;
+				
 				if( ofs +frameCount > hsize )
 					memcpy( devs[sd].ins +sc*csize +tsize +hsize, devs[sd].ins +sc*csize +tsize, (ofs +frameCount -hsize)*ssize );
 				else if( ofs -tsize < 0 )
