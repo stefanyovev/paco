@@ -140,7 +140,7 @@
 					if( lat > *(dev->global_worst_latency) ){
 						*(dev->global_worst_latency) = lat;
 						resync(); }
-					src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) - (*(dev->global_worst_latency)) -dev->outs[dc].delay;
+					src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) - (*(dev->global_worst_latency)) -dev->outs[dc].delay -asize;
 					printf( "route %d %d %d %d latency %d delay %d src %d \n\t] ", sd, sc, dd, dc, *(dev->global_worst_latency), dev->outs[dc].delay, src ); }
 				else
 					src = dev->outs[dc].last_src;
