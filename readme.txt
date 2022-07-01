@@ -2,7 +2,6 @@
 
 repeat windows audio across different devices in realtime.
 record and play all speakers simultaneously.
-listen to hdmi tv, bluetooth and sub at the same time.
 
 apply delay, gain, convolution to the outputs so we can use all available soundcards/loudspeakers in a combined system 
 
