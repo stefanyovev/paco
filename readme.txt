@@ -7,6 +7,12 @@ goal:
 
 pre:
   install vb audio vb cable or other virtual audio cable and make it the default windows playback device.
+  make sure the cable and the other devices you want to use are all set to 44100 from windows.
   start this and route cable outputs to devices.
 
-todos: uptime prompt, status cmd
+todos:
+	uptime prompt / global now
+	status cmd
+	callback time total?
+	global_worst why pointer
+	resync resets self?
