@@ -1,14 +1,13 @@
-# PortAudio Console
+  libPortAudio Console (paco)
 
-goal:
-  repeat windows audio across different devices in realtime.
-  use all available soundcards and loudspeakers in a combined system.
-  optionally delay and/or convolve the outputs.
+Goal:
+  Repeat Windows audio across different devices in realtime.
+  Optionally apply effects to the outputs.
 
-pre:
-  install vb audio vb cable or other virtual audio cable and make it the default windows playback device.
-  make sure the cable and the other devices you want to use are all set to 44100 from windows.
-  start this and route cable outputs to devices.
+Pre:
+  Install VB Audio VB Cable or other virtual audio cable and make it the default windows playback device.
+  Make sure the cable and the other devices you want to use are all set to 44100 from windows settings.
+  Start this and route cable outputs to devices.
 
 todos:
 	uptime prompt / global now
