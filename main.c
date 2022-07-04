@@ -300,8 +300,15 @@
 			else if( strcmp( cmd, "resync" ) == 0 )
 				resync();
 			
-			else if( strcmp( cmd, "status" ) == 0 )
-				printf( "Latency %d \n\t] ", worst_latency );
+			else if( strcmp( cmd, "status" ) == 0 ){
+				for( int i=0; i<ndevs; i++)
+					if( devs[i].stream ){
+						double now = PaUtil_GetTime();
+						printf( "dev %d asize %d/%d rates %d/%d \n\t] ",
+							i, devs[i].max_in_asize, devs[i].max_out_asize,
+							(int) ceil(devs[i].in_len /(now-devs[i].t0)),
+							(int) ceil(devs[i].out_len/(now-devs[i].t0)) ); }
+				printf( "Latency %d \n\t] ", worst_latency ); }
 
 		}
 	}
