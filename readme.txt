@@ -12,6 +12,4 @@ How:
 todos:
 	uptime prompt / global now
 	status cmd
-	callback time total?
-	global_worst why pointer
-	resync resets self?
+	callback time total, gettime() total?
