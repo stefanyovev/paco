@@ -85,9 +85,8 @@
 
 	inline void resync(){
 		for( int i=0; i<ndevs; i++)
-			if( devs[i].nouts && devs[i].stream )
-				for( int j=0; j<devs[i].nouts; j++)
-					devs[i].outs[j].last_src = 0; }
+			for( int j=0; j<devs[i].nouts; j++)
+				devs[i].outs[j].last_src = 0; }
 
 	PaStreamCallbackResult device_tick(
 		const void **input,
