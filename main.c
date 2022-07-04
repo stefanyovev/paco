@@ -134,16 +134,16 @@
 
 				long long src;
 				
-				if( dev->outs[dc].last_src == 0 ){
+				if( dev->outs[dc].last_src )
+					src = dev->outs[dc].last_src;
+				else {
 					int lat = devs[sd].max_in_asize +dev->max_out_asize;
 					if( lat > worst_latency ){
 						worst_latency = lat;
 						resync(); }
 					src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) - worst_latency -dev->outs[dc].delay -asize;
 					printf( "route %d %d %d %d latency %d delay %d src %d \n\t] ", sd, sc, dd, dc, worst_latency, dev->outs[dc].delay, src ); }
-				else
-					src = dev->outs[dc].last_src;
-				
+
 				if( dev->outs[dc].new_delay ){
 					src -= dev->outs[dc].new_delay -dev->outs[dc].delay;
 					dev->outs[dc].delay = dev->outs[dc].new_delay;
@@ -155,16 +155,12 @@
 					memset( out_data[dc], 0, frameCount*ssize );
 					continue; }
 				
-				int wtf;
+				int wtf = 0;
 				if( src +frameCount > devs[sd].in_len ){
 					wtf = src +frameCount -devs[sd].in_len;
-					printf( "%d %d %d %d wants to read %d future unsaved samples. will give wtf. \n\t] ", sd, sc, dd, dc, wtf );
-					
-				} else
-					wtf = 0;
+					printf( "%d %d %d %d wants to read %d future unsaved samples. will give wtf. \n\t] ", sd, sc, dd, dc, wtf ); }
 					
 				int ofs = (src -wtf) % hsize;
-				
 				if( ofs +frameCount > hsize )
 					memcpy( devs[sd].ins +sc*csize +tsize +hsize, devs[sd].ins +sc*csize +tsize, (ofs +frameCount -hsize)*ssize );
 				else if( ofs -tsize < 0 )
