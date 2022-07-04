@@ -11,7 +11,5 @@ How:
 
 todos:
 	uptime prompt / global now
-	status cmd
-	memset unused outs
 	new delay schema
 	callback time total, gettime() total?
