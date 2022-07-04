@@ -12,4 +12,5 @@ How:
 todos:
 	uptime prompt / global now
 	status cmd
+	memset unused outs
 	callback time total, gettime() total?
