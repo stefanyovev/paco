@@ -128,10 +128,12 @@
 					continue; }
 				
 				if( !devs[sd].in_len ){
-					printf( "%d waiting %d to start \n\t] ", dd, sd );
+					printf( "dev %d waiting dev %d to start \n\t] ", dd, sd );
+					memset( out_data[dc], 0, frameCount*ssize );
 					continue; }
 
 				long long src;
+				
 				if( dev->outs[dc].last_src == 0 ){
 					int lat = devs[sd].max_in_asize +dev->max_out_asize;
 					if( lat > worst_latency ){
@@ -149,7 +151,8 @@
 					printf( "%d %d %d %d delay now %d \n\t] ", sd, sc, dd, dc, dev->outs[dc].delay ); }
 				
 				if( src < 0  ){
-					printf( "%d buffering %d src %d \n\t] ", dd, sd, src );
+					printf( "dev %d buffering dev %d src %d \n\t] ", dd, sd, src );
+					memset( out_data[dc], 0, frameCount*ssize );
 					continue; }
 				
 				int wtf;
