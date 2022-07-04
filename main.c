@@ -268,7 +268,9 @@
 			"\n\t\t 85 0 82 0 "
 			"\n\t\t 85 1 82 1 "
 			"\n\t  "
-			"\n\t type 'q' to exit "
+			"\n\t resync - re-position streams"
+			"\n\t status - status"
+			"\n\t q      - exit "
 			"\n  "
 			"\n  ",
 			srate, ssize, asize, tsize, hsize );
