@@ -136,11 +136,11 @@
 				if( dev->outs[dc].last_src )
 					src = dev->outs[dc].last_src;
 				else {
-					int lat = devs[sd].max_in_asize +dev->max_out_asize;
+					int lat = dev->max_out_asize*2;
 					if( lat > worst_latency ){
 						worst_latency = lat;
 						resync(); }
-					src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) - worst_latency -dev->outs[dc].delay -asize;
+					src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) -worst_latency -dev->outs[dc].delay;
 					printf( "route %d %d %d %d latency %d delay %d src %d \n\t] ", sd, sc, dd, dc, worst_latency, dev->outs[dc].delay, src ); }
 
 				if( dev->outs[dc].new_delay ){
