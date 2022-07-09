@@ -38,15 +38,14 @@
 
 	struct device {
 		int id;
+		PaStream *stream;
 		const PaDeviceInfo *info;
 		int nins, nouts;
 		float *ins;
 		route *outs;
-		PaStream *stream;
-		double t0;
+		double in_t0, out_t0;
 		long long in_len, out_len;
-		int max_in_asize;
-		int max_out_asize; };
+		int max_in_asize, max_out_asize; };
 	typedef struct device device;
 
 	device *devs = 0;
@@ -80,7 +79,8 @@
 			devs[i].stream = 0;
 			devs[i].in_len = 0;
 			devs[i].out_len = 0;
-			devs[i].t0 = 0.0; }
+			devs[i].in_t0 = 0.0;
+			devs[i].out_t0 = 0.0; }
 		return OK; }
 
 	inline void resync(){
@@ -111,9 +111,11 @@
 				for( int i=0; i< dev->nins; i++ ){
 					memcpy( dev->ins +i*csize +tsize +ofs, in_data[i], (frameCount-x)*ssize );
 					memcpy( dev->ins +i*csize +tsize, in_data[i]+(frameCount-x), x*ssize ); }}
-			dev->in_len += frameCount;
 			if( dev->max_in_asize < frameCount )
-				dev->max_in_asize = frameCount; }
+				dev->max_in_asize = frameCount;
+			if( dev->in_t0 == 0.0 )
+				dev->in_t0 = PaUtil_GetTime();
+			dev->in_len += frameCount; }
 		
 		if( output ){
 			for( int dc=0; dc<dev->nouts; dc++ ){
@@ -140,7 +142,7 @@
 					if( lat > worst_latency ){
 						worst_latency = lat;
 						resync(); }
-					src = (int)ceil((PaUtil_GetTime()-devs[sd].t0)/stime) -worst_latency -dev->outs[dc].delay;
+					src = (int)ceil((PaUtil_GetTime()-devs[sd].in_t0)/stime) -worst_latency -dev->outs[dc].delay;
 					printf( "route %d %d %d %d latency %d delay %d src %d \n\t] ", sd, sc, dd, dc, worst_latency, dev->outs[dc].delay, src ); }
 
 				if( dev->outs[dc].new_delay ){
@@ -172,14 +174,13 @@
 						out_data[dc][n] += dev->outs[dc].k[kn]*sig[n-kn]; }
 
 				dev->outs[dc].last_src = src +frameCount; }
-					
-			dev->out_len += frameCount;
-			if( dev->max_out_asize < frameCount )
-				dev->max_out_asize = frameCount; }
 				
-		if( dev->t0 == 0.0 )
-			dev->t0 = PaUtil_GetTime();
-
+			if( dev->max_out_asize < frameCount )
+				dev->max_out_asize = frameCount;
+			if( dev->out_t0 == 0.0 )
+				dev->out_t0 = PaUtil_GetTime();
+			dev->out_len += frameCount; }
+				
 		return paContinue; }
 			
 	int use_device( device *dev ) {
@@ -218,7 +219,7 @@
 			printf( "ERROR 3: %s \n\t] ", Pa_GetErrorText( err ) );
 			return FAIL; }
 
-		while( dev->t0 == 0.0 );
+		while( !dev->in_len && !dev->out_len );
 		printf( "ok \n\t] " );
 		return OK; }
 
@@ -306,8 +307,8 @@
 						double now = PaUtil_GetTime();
 						printf( "dev %d asize %d/%d rates %d/%d \n\t] ",
 							i, devs[i].max_in_asize, devs[i].max_out_asize,
-							(int) ceil(devs[i].in_len /(now-devs[i].t0)),
-							(int) ceil(devs[i].out_len/(now-devs[i].t0)) ); }
+							(int) ceil(devs[i].in_len /(now-devs[i].in_t0)),
+							(int) ceil(devs[i].out_len/(now-devs[i].out_t0)) ); }
 				printf( "Latency %d \n\t] ", worst_latency ); }
 
 		}
