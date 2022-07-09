@@ -18,12 +18,12 @@
 
 	int srate = SR;				// sample rate [samples/second]
 	int hsize = SR;				// history size [samples]
-	int asize = 1000;			// desired callback argument size (latency) [samples]
+	int asize = SR / 50;			// desired callback argument size (latency) [samples]
 	int tsize = SR / 20;  			// tail size [samples]
 	
 	int csize = 0;				// input channel struct size [samples] tsize+hsize+3*asize
 	int ssize = sizeof(float);		// sample size [bytes]
-	double stime = 1.0 / SR;		// sample duration [seconds]
+	long double stime = 1.0 / SR;		// sample duration [seconds]
 	
 	int worst_latency = 0;			// max route rec+play latency [samples]
 
