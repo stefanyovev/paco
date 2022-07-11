@@ -10,8 +10,8 @@ How:
   Start this and route cable outputs to devices.
 
 todos:
-	uptime prompt / global t0
+	uptime prompt
 	on resync print src diff
 	update route delay schema
 	callback time total, gettime() total?, log callback timestamps & args in file
-	clear, save, load
+	clear, save (as text), load
