@@ -13,6 +13,8 @@ How:
 todos:
    uptime prompt
    on resync print src diff
-   update route delay schema
    callback time total, gettime() total?, log callback timestamps & args in file
+   desync measure (displacement)
+   update route delay schema
    clear, save (as text), load
+   
