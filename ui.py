@@ -22,9 +22,32 @@ QKeyEvent as KeyEvent
 from subprocess import \
 Popen, PIPE, STDOUT
 
-import os
+from re import \
+fullmatch
 
-from re import fullmatch
+from time import \
+sleep
+
+import os, sys
+
+
+class ReadLoop(Thread):
+
+    sig_receive = signal(str)
+
+    def __init__(self, buffer):
+        super().__init__()
+        self.buffer = buffer
+        self.start()
+
+    def run(self):
+        while 1:
+            avail = self.buffer.peek()
+            if avail:
+                new_data = self.buffer.read(len(avail)).decode('ascii')
+                self.sig_receive.emit(new_data)
+            sleep(0.01)
+
 
 class Process(Thread):
 
@@ -75,26 +98,30 @@ class MainWindow(Widget):
         super().__init__(*args, **kwargs)
         
         self.setWindowTitle(self.cmd)
-        self.setFixedSize(800, 600)
+        self.setFixedSize(800, 200)
         self.setLayout(VBoxLayout())
-        hbox = HBoxLayout()
-        vbox2 = VBoxLayout()
+        self.label1 = Label('From:')
+        self.label1.setFixedWidth(50)        
         self.combo1 = ComboBox()
+        hbox1 = HBoxLayout()
+        hbox1.addWidget(self.label1)
+        hbox1.addWidget(self.combo1)
+        self.label2 = Label('To:')
+        self.label2.setFixedWidth(50)
         self.combo2 = ComboBox()
-        vbox2.addWidget(self.combo1)
-        vbox2.addWidget(self.combo2)
-        hbox.addLayout(vbox2)
+        hbox2 = HBoxLayout()
+        hbox2.addWidget(self.label2)
+        hbox2.addWidget(self.combo2)
+        vbox = VBoxLayout()
+        vbox.addLayout(hbox1)
+        vbox.addLayout(hbox2)
+        hbox3 = HBoxLayout()
+        hbox3.addLayout(vbox)
         self.button = Button("play")
         self.button.setFixedWidth(50)
-        hbox.addWidget(self.button)
-        self.layout().addLayout(hbox)
-        self.label = TextEdit("Starting ...")
-        self.label.setReadOnly(True)
-        self.layout().addWidget(self.label)
-        self.lineedit = LineEdit()
-        self.layout().addWidget(self.lineedit)
+        hbox3.addWidget(self.button)
+        self.layout().addLayout(hbox3)
         
-        self.lineedit.returnPressed.connect(self.on_lineedit_send)
         self.button.clicked.connect(self.on_play_clicked)
 
         self.proc = Process(self.cmd, self.on_start, self.on_stop, self.on_receive)
@@ -104,22 +131,17 @@ class MainWindow(Widget):
         sd = self.combo1.currentText().split(' ', 1)[0]
         dd = self.combo2.currentText().split(' ', 1)[0]
         cmd = '%s 0 %s 0\n%s 1 %s 1\n' % (sd, dd, sd, dd)
-        self.label.append(cmd)
+        print(cmd)
         self.proc.send(cmd)
 
-    def on_lineedit_send(self):
-        cmd = self.lineedit.text() +'\n'
-        self.label.append(cmd)
-        self.proc.send(cmd)
-    
     def closeEvent(self, e):
         self.proc.proc.kill()
 
     def on_start(self):
-        self.label.clear()
+        pass
 
     def on_receive(self, data):
-        self.label.append(data)
+        print(data)
         self.recvbuf += data
         if '\n' in self.recvbuf:
             parts = self.recvbuf.split('\n')
@@ -142,6 +164,12 @@ class MainWindow(Widget):
 if __name__ == '__main__':
 
     app = Application([])
+    
+    stdin = ReadLoop(sys.stdin.buffer)
+    
     win = MainWindow()
     win.show()
+
+    stdin.sig_receive.connect(win.proc.send)
+    
     app.exec()
