@@ -17,4 +17,3 @@ todos:
    desync measure (displacement)
    update route delay schema
    clear, save (as text), load
-   
