@@ -97,7 +97,7 @@ class MainWindow(Widget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-        self.setWindowTitle(self.cmd)
+        self.setWindowTitle("Patso player")
         self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint)
         self.setFixedSize(900, 200)
         
@@ -120,7 +120,7 @@ class MainWindow(Widget):
         hbox3 = HBoxLayout()
         hbox3.addLayout(vbox)
         self.button = Button("play")
-        self.button.setFixedWidth(50)
+        self.button.setFixedSize(100, 100)
         hbox3.addWidget(self.button)
         self.layout().addLayout(hbox3)
         
@@ -130,8 +130,8 @@ class MainWindow(Widget):
         self.recvbuf = ''
 
     def on_play_clicked(self, e):
-        sd = self.combo1.currentText().split(' ', 1)[0]
-        dd = self.combo2.currentText().split(' ', 1)[0]
+        sd = fullmatch("\s+([0-9]+)\s+.*", self.combo1.currentText() ).groups()[0]
+        dd = fullmatch("\s+([0-9]+)\s+.*", self.combo2.currentText() ).groups()[0]
         cmd = '%s 0 %s 0\n%s 1 %s 1\n' % (sd, dd, sd, dd)
         print(cmd)
         self.proc.send(cmd)
@@ -153,7 +153,7 @@ class MainWindow(Widget):
                 match = fullmatch( "\s+([0-9]+)\s+([0-9]+|-)\s([0-9]+|-)\s+\"(.*)\"\s\"(.*)\".*", line )
                 if match:
                     g = match.groups()
-                    name = "%s %s %s" % (g[0], g[3], g[4])
+                    name = "   %s[%s]   %s" % (g[0].ljust(5), g[3], g[4])
                     if g[1] != '-':
                         self.combo1.addItem(name)
                     if g[2] != '-':
@@ -174,4 +174,7 @@ if __name__ == '__main__':
 
     stdin.sig_receive.connect(win.proc.send)
     
-    app.exec()
+    try:
+        app.exec()
+    except:
+        sleep(5)
