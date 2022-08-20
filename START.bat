@@ -5,4 +5,4 @@
 
 @tcc -llibportaudio64bit main.c -o main.exe
 
-@if %errorlevel% == 0 ( @main.exe ) else ( @echo. & @pause )
+if %errorlevel% neq 0 ( pause ) else ( where py & if %errorlevel% neq 0 ( main.exe ) else ( py -3 ui.py ) )
