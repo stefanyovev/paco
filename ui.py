@@ -98,7 +98,9 @@ class MainWindow(Widget):
         super().__init__(*args, **kwargs)
         
         self.setWindowTitle(self.cmd)
-        self.setFixedSize(800, 200)
+        self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint)
+        self.setFixedSize(900, 200)
+        
         self.setLayout(VBoxLayout())
         self.label1 = Label('From:')
         self.label1.setFixedWidth(50)        
