@@ -246,7 +246,10 @@
 			printf( "  %s%d    %s %s    \"%s\" \"", i<10 ? " " : "", i,
 				devs[i].nins ? s1 : "-", devs[i].nouts ? s2 : "-",
 				Pa_GetHostApiInfo( devs[i].info->hostApi )->name );
-			printf( "%s\"\n", devs[i].info->name ); }}
+			for( int j=0; j<strlen(devs[i].info->name); j++ )
+				if( devs[i].info->name[j] > 31 )
+					printf( "%c", devs[i].info->name[j] );
+			printf( "\"\n" ); }}
 
 	int main( int agrc, char* argv ) {			
 		printf( "\n\t%s\n\n", title );
@@ -283,6 +286,7 @@
 		
 		while( 1 ){
 		
+			fflush(stdout);
 			gets( cmd );
 			printf( "\t] " );
 
