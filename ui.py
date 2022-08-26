@@ -1,32 +1,26 @@
 
-
 from PyQt5.QtWidgets import \
-QApplication as Application, \
-QWidget as Widget, \
-QLabel as Label, \
-QComboBox as ComboBox, \
-QPushButton as Button, \
-QTextEdit as TextEdit, \
-QLineEdit as LineEdit, \
-QHBoxLayout as HBoxLayout, \
-QVBoxLayout as VBoxLayout
+    QApplication as Application, \
+    QWidget as Widget, \
+    QLabel as Label, \
+    QComboBox as ComboBox, \
+    QPushButton as Button, \
+    QHBoxLayout as HBoxLayout, \
+    QVBoxLayout as VBoxLayout
 
 from PyQt5.QtCore import \
-pyqtSignal as signal, \
-QThread as Thread, \
-Qt
-
-from PyQt5.QtGui import \
-QKeyEvent as KeyEvent
+    pyqtSignal as signal, \
+    QThread as Thread, \
+    Qt
 
 from subprocess import \
-Popen, PIPE, STDOUT
+    Popen, PIPE, STDOUT
 
 from re import \
-fullmatch
+    fullmatch
 
 from time import \
-sleep
+    sleep
 
 import os, sys
 
@@ -35,59 +29,63 @@ class ReadLoop(Thread):
 
     sig_receive = signal(str)
 
-    def __init__(self, buffer):
+    def __init__(self, handle, receive_func):
         super().__init__()
-        self.buffer = buffer
+        self.sig_receive.connect(receive_func)
+        self.handle = handle
         self.start()
 
     def run(self):
         while 1:
-            avail = self.buffer.peek()
-            if avail:
-                new_data = self.buffer.read(len(avail)).decode('ascii')
-                self.sig_receive.emit(new_data)
-            sleep(0.01)
+            new_data = self.handle.read1().decode('ascii')
+            if not new_data:
+                break
+            self.sig_receive.emit(new_data)
+        print('\n[ReadLoop DONE]\n')
 
 
 class Process(Thread):
 
-    sig_start = signal()
-    sig_stop = signal(int)
     sig_receive = signal(str)
+    sig_stop = signal(int)
 
-    def __init__(self, cmd, start_func, stop_func, receive_func):
+    def __init__(self, cmd, receive_func, stop_func):
         super().__init__()
-        self.sig_start.connect(start_func)
         self.sig_stop.connect(stop_func)
         self.sig_receive.connect(receive_func)
         self.proc = Popen(cmd, shell=False, stdin=PIPE, stdout=PIPE, stderr=STDOUT)
-        self.started = False
-        self.sendbuf = ''        
+        self.readloop = ReadLoop(self.proc.stdout, self.receive)
+        self.sendbuf = self.recvbuf = ''
         self.start()
 
-    def run(self): # READ-LOOP
+    def run(self):
         while 1:
             retcode = self.proc.poll()
             if retcode is not None:
                 self.sig_receive.disconnect()
                 self.sig_stop.emit(retcode)
                 break
-            elif not self.started:
-                self.started = True
-                self.sig_start.emit()
-            avail = self.proc.stdout.peek()
-            if avail:
-                new_data = self.proc.stdout.read(len(avail)).decode('ascii')
-                self.sig_receive.emit(new_data)
+            sleep(0.0333)
 
     def send(self, data):
-            self.sendbuf += data
-            if '\n' in self.sendbuf:
-                readydata, self.sendbuf = self.sendbuf.rsplit('\n', 1)
-                readydata += '\n'
-                self.proc.stdin.write(bytes(readydata, encoding='ascii'))
-                try: self.proc.stdin.flush()
-                except: pass
+        self.sendbuf += data + '\n'
+        if '\n' in self.sendbuf:
+            readydata, self.sendbuf = self.sendbuf.rsplit('\n', 1)
+            readydata += '\n'
+            self.proc.stdin.write(bytes(readydata, encoding='ascii'))
+            try: self.proc.stdin.flush()
+            except: pass
+
+    def receive(self, data):
+        self.recvbuf += data
+        if '\n' in self.recvbuf:
+            parts = self.recvbuf.split('\n')
+            self.recvbuf = parts[-1]
+            for line in parts[:-1]:
+                self.sig_receive.emit(line.strip('\r'))
+
+    def stop(self):
+        self.proc.kill()
 
 
 class MainWindow(Widget):
@@ -96,14 +94,14 @@ class MainWindow(Widget):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        
-        self.setWindowTitle("Patso player")
+
+        self.setWindowTitle("Paco")
         self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint)
         self.setFixedSize(900, 200)
-        
+
         self.setLayout(VBoxLayout())
         self.label1 = Label('From:')
-        self.label1.setFixedWidth(50)        
+        self.label1.setFixedWidth(50)
         self.combo1 = ComboBox()
         hbox1 = HBoxLayout()
         hbox1.addWidget(self.label1)
@@ -123,58 +121,46 @@ class MainWindow(Widget):
         self.button.setFixedSize(100, 100)
         hbox3.addWidget(self.button)
         self.layout().addLayout(hbox3)
-        
+
         self.button.clicked.connect(self.on_play_clicked)
 
-        self.proc = Process(self.cmd, self.on_start, self.on_stop, self.on_receive)
-        self.recvbuf = ''
+        self.proc = Process(self.cmd, self.on_receive, self.on_stop)
 
     def on_play_clicked(self, e):
-        sd = fullmatch("\s+([0-9]+)\s+.*", self.combo1.currentText() ).groups()[0]
-        dd = fullmatch("\s+([0-9]+)\s+.*", self.combo2.currentText() ).groups()[0]
-        cmd = '%s 0 %s 0\n%s 1 %s 1\n' % (sd, dd, sd, dd)
-        print(cmd)
+        sd = fullmatch("\s+([0-9]+)\s+.*", self.combo1.currentText()).groups()[0]
+        dd = fullmatch("\s+([0-9]+)\s+.*", self.combo2.currentText()).groups()[0]
+        cmd = '%s 0 %s 0\n%s 1 %s 1' % (sd, dd, sd, dd)
         self.proc.send(cmd)
 
     def closeEvent(self, e):
-        self.proc.proc.kill()
-
-    def on_start(self):
-        pass
+        self.proc.stop()
 
     def on_receive(self, data):
         print(data)
-        self.recvbuf += data
-        if '\n' in self.recvbuf:
-            parts = self.recvbuf.split('\n')
-            self.recvbuf = parts[-1]
-            for line in parts[:-1]:
-                line = line.strip('\r')
-                match = fullmatch( "\s+([0-9]+)\s+([0-9]+|-)\s([0-9]+|-)\s+\"(.*)\"\s\"(.*)\".*", line )
-                if match:
-                    g = match.groups()
-                    name = "   %s[%s]   %s" % (g[0].ljust(5), g[3], g[4])
-                    if g[1] != '-':
-                        self.combo1.addItem(name)
-                    if g[2] != '-':
-                        self.combo2.addItem(name)
+        match = fullmatch("\s+([0-9]+)\s+([0-9]+|-)\s([0-9]+|-)\s+\"(.*)\"\s\"(.*)\".*", data)
+        if match:
+            g = match.groups()
+            name = "   %s[%s]   %s" % (g[0].ljust(5), g[3], g[4])
+            if g[1] != '-': self.combo1.addItem(name)
+            if g[2] != '-': self.combo2.addItem(name)
 
     def on_stop(self, retcode):
-        os._exit(retcode)
+        os.exit(retcode)
 
 
 if __name__ == '__main__':
 
     app = Application([])
-    
-    stdin = ReadLoop(sys.stdin.buffer)
-    
+
     win = MainWindow()
     win.show()
 
-    stdin.sig_receive.connect(win.proc.send)
-    
+    stdin = ReadLoop(sys.stdin.buffer, win.proc.send)
+
     try:
         app.exec()
     except:
+        print('ERR\n')
         sleep(5)
+
+    sys.stdin.buffer.raw.close()
