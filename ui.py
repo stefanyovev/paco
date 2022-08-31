@@ -23,6 +23,9 @@ from re import \
 from time import \
     sleep
 
+from functools import \
+    partial
+
 import os, sys
 
 
@@ -98,7 +101,7 @@ class MainWindow(Widget):
 
         self.setWindowTitle("Paco")
         self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint)
-        self.setFixedSize(900, 200)
+        self.setFixedSize(900, 300)
 
         self.setLayout(VBoxLayout())
         self.label1 = Label('From:')
@@ -122,24 +125,26 @@ class MainWindow(Widget):
         self.button.setFixedSize(100, 100)
         hbox3.addWidget(self.button)
         self.layout().addLayout(hbox3)
-        hbox4 = HBoxLayout()
-        self.label3 = Label('Delay\nlast route')
-        self.slider = Slider(Qt.Horizontal)
-        self.slider.setRange(0, 10000)
-        self.slider.setEnabled(False)
-        hbox4.addWidget(self.label3)
-        hbox4.addWidget(self.slider)
-        self.layout().addLayout(hbox4)
 
         self.button.clicked.connect(self.on_play_clicked)
-        self.slider.valueChanged.connect(self.set_delay_on_last_route)
 
         self.proc = Process(self.cmd, self.on_receive, self.on_stop)
         
         self.routes = []
 
-    def set_delay_on_last_route(self, val):
-        sd, dd = self.routes[-1]
+    def add_route_row(self, sd, dd):
+        vbox = VBoxLayout()
+        vbox.addWidget(Label('Route %s -> %s' % (sd, dd)))
+        hbox = HBoxLayout()
+        hbox.addWidget(Label('Delay:'))
+        slider = Slider(Qt.Horizontal)
+        slider.setRange(0, 10000)
+        hbox.addWidget(slider)
+        vbox.addLayout(hbox)
+        slider.valueChanged.connect(partial(self.set_route_delay, sd, dd))
+        self.layout().addLayout(vbox)
+    
+    def set_route_delay(self, sd, dd, val):
         cmd = '%s 0 %s 0 %s\n%s 1 %s 1 %s' % (sd, dd, val, sd, dd, val)
         self.proc.send(cmd)
 
@@ -149,7 +154,7 @@ class MainWindow(Widget):
         self.routes.append((sd, dd))
         cmd = '%s 0 %s 0\n%s 1 %s 1' % (sd, dd, sd, dd)
         self.proc.send(cmd)
-        self.slider.setEnabled(True)
+        self.add_route_row(sd, dd)
 
     def closeEvent(self, e):
         self.proc.stop()
