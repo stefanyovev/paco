@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import \
     QWidget as Widget, \
     QLabel as Label, \
     QComboBox as ComboBox, \
+    QSlider as Slider, \
     QPushButton as Button, \
     QHBoxLayout as HBoxLayout, \
     QVBoxLayout as VBoxLayout
@@ -121,16 +122,34 @@ class MainWindow(Widget):
         self.button.setFixedSize(100, 100)
         hbox3.addWidget(self.button)
         self.layout().addLayout(hbox3)
+        hbox4 = HBoxLayout()
+        self.label3 = Label('Delay\nlast route')
+        self.slider = Slider(Qt.Horizontal)
+        self.slider.setRange(0, 10000)
+        self.slider.setEnabled(False)
+        hbox4.addWidget(self.label3)
+        hbox4.addWidget(self.slider)
+        self.layout().addLayout(hbox4)
 
         self.button.clicked.connect(self.on_play_clicked)
+        self.slider.valueChanged.connect(self.set_delay_on_last_route)
 
         self.proc = Process(self.cmd, self.on_receive, self.on_stop)
+        
+        self.routes = []
+
+    def set_delay_on_last_route(self, val):
+        sd, dd = self.routes[-1]
+        cmd = '%s 0 %s 0 %s\n%s 1 %s 1 %s' % (sd, dd, val, sd, dd, val)
+        self.proc.send(cmd)
 
     def on_play_clicked(self, e):
         sd = fullmatch("\s+([0-9]+)\s+.*", self.combo1.currentText()).groups()[0]
         dd = fullmatch("\s+([0-9]+)\s+.*", self.combo2.currentText()).groups()[0]
+        self.routes.append((sd, dd))
         cmd = '%s 0 %s 0\n%s 1 %s 1' % (sd, dd, sd, dd)
         self.proc.send(cmd)
+        self.slider.setEnabled(True)
 
     def closeEvent(self, e):
         self.proc.stop()
