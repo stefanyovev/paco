@@ -125,13 +125,20 @@ class MainWindow(Widget):
         self.button.setFixedSize(100, 100)
         hbox3.addWidget(self.button)
         self.layout().addLayout(hbox3)
+        self.resync_btn = Button('resync')
+        self.resync_btn.clicked.connect(self.resync)
+        self.resync_btn.setEnabled(False)
+        self.layout().addWidget(self.resync_btn)
 
         self.button.clicked.connect(self.on_play_clicked)
 
         self.proc = Process(self.cmd, self.on_receive, self.on_stop)
         
         self.routes = []
-
+        
+    def resync(self):
+        self.proc.send('resync\n')
+        
     def add_route_row(self, sd, dd):
         vbox = VBoxLayout()
         vbox.addWidget(Label('Route %s -> %s' % (sd, dd)))
@@ -155,6 +162,7 @@ class MainWindow(Widget):
         cmd = '%s 0 %s 0\n%s 1 %s 1' % (sd, dd, sd, dd)
         self.proc.send(cmd)
         self.add_route_row(sd, dd)
+        self.resync_btn.setEnabled(True)
 
     def closeEvent(self, e):
         self.proc.stop()
