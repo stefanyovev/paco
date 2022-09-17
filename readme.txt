@@ -2,7 +2,7 @@
    libPortAudio Console (paco)
 
 Goal:
-   Repeat Windows audio across different devices in realtime.
+   Repeat Windows audio across different devices in realtime (play all speakers simultaneously).
    Optionally apply effects to the outputs.
 
 How:
