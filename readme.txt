@@ -1,5 +1,5 @@
 
-   libPortAudio Console (paco)
+   PortAudio Console (paco)
 
 Goal:
    Repeat Windows audio across different devices in realtime (play all speakers simultaneously).
