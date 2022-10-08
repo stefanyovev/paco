@@ -220,7 +220,7 @@
 	int route_add( int sd, int sc, int dd, int dc, int d ) {
 		if( devs[dd].outs[dc].sd == sd && devs[dd].outs[dc].sc == sc ){
 			if( devs[dd].outs[dc].delay != d ) {
-                int diff = d -devs[dd].outs[dc].delay;
+				int diff = d -devs[dd].outs[dc].delay;
 				devs[dd].outs[dc].delay += diff;
 				printf( "%d", diff ); }
 			return OK; }
