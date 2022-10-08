@@ -20,3 +20,6 @@ todos:
 Note:
    Even the underrun is somehow handled, overruns may silently delay streams.
    Still necessary to resync every 5-10 minutes ..
+
+Note:
+   Master not tested. Use 1.2.0.
