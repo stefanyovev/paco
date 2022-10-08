@@ -30,7 +30,7 @@
 	float k[1] = {1.0}; // default
 
 	struct route {
-		int sd, sc, delay, new_delay;
+		int sd, sc, delay;
 		long long last_src;
 		int ksize;
 		float* k; };
@@ -142,26 +142,20 @@
 					if( lat > worst_latency ){
 						worst_latency = lat;
 						resync(); }
-					src = (int)ceil((PaUtil_GetTime()-devs[sd].in_t0)/stime) -worst_latency -dev->outs[dc].delay;
+					src = (int)ceil((PaUtil_GetTime()-devs[sd].in_t0)/stime) -worst_latency;
 					printf( "route %d %d %d %d latency %d delay %d src %d \n\t] ", sd, sc, dd, dc, worst_latency, dev->outs[dc].delay, src ); }
 
-				if( dev->outs[dc].new_delay ){
-					src -= dev->outs[dc].new_delay -dev->outs[dc].delay;
-					dev->outs[dc].delay = dev->outs[dc].new_delay;
-					dev->outs[dc].new_delay = 0;
-					printf( "%d %d %d %d delay now %d \n\t] ", sd, sc, dd, dc, dev->outs[dc].delay ); }
-				
 				if( src < 0  ){
 					printf( "dev %d buffering dev %d src %d \n\t] ", dd, sd, src );
 					memset( out_data[dc], 0, frameCount*ssize );
 					continue; }
 				
-				int wtf = 0;
-				if( src +frameCount > devs[sd].in_len ){
+				int wtf = 0; // amout requested but unwritten
+				if( src +frameCount > devs[sd].in_len ){ // underrun
 					wtf = src +frameCount -devs[sd].in_len;
-					printf( "%d %d %d %d wants to read %d future unsaved samples. will give wtf. \n\t] ", sd, sc, dd, dc, wtf ); }
+					printf( "%d %d %d %d wants to read the future. will replay %d samples. \n\t] ", sd, sc, dd, dc, wtf ); }
 					
-				int ofs = (src -wtf) % hsize;
+				int ofs = (src -dev->outs[dc].delay -wtf) % hsize;
 				if( ofs +frameCount > hsize )
 					memcpy( devs[sd].ins +sc*csize +tsize +hsize, devs[sd].ins +sc*csize +tsize, (ofs +frameCount -hsize)*ssize );
 				else if( ofs -tsize < 0 )
@@ -225,8 +219,10 @@
 
 	int route_add( int sd, int sc, int dd, int dc, int d ) {
 		if( devs[dd].outs[dc].sd == sd && devs[dd].outs[dc].sc == sc ){
-			if( devs[dd].outs[dc].delay != d )
-				devs[dd].outs[dc].new_delay = d;
+			if( devs[dd].outs[dc].delay != d ) {
+                int diff = d -devs[dd].outs[dc].delay;
+				devs[dd].outs[dc].delay += diff;
+				printf( "%d", diff ); }
 			return OK; }
 		devs[dd].outs[dc].sd = sd;
 		devs[dd].outs[dc].sc = sc;
