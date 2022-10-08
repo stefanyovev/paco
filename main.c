@@ -150,12 +150,16 @@
 					memset( out_data[dc], 0, frameCount*ssize );
 					continue; }
 				
-				int wtf = 0; // amout requested but unwritten
+				int wtf = 0; // amount requested but unwritten
 				if( src +frameCount > devs[sd].in_len ){ // underrun
 					wtf = src +frameCount -devs[sd].in_len;
 					printf( "%d %d %d %d wants to read the future. will replay %d samples. \n\t] ", sd, sc, dd, dc, wtf ); }
 					
 				int ofs = (src -dev->outs[dc].delay -wtf) % hsize;
+				
+				if( wtf > 0 )
+					resync();
+				
 				if( ofs +frameCount > hsize )
 					memcpy( devs[sd].ins +sc*csize +tsize +hsize, devs[sd].ins +sc*csize +tsize, (ofs +frameCount -hsize)*ssize );
 				else if( ofs -tsize < 0 )
