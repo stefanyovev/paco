@@ -103,28 +103,43 @@ class MainWindow(Widget):
         self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint)
         self.setFixedSize(900, 300)
 
-        self.setLayout(VBoxLayout())
-        self.label1 = Label('From:')
+        def box(typ, content):
+            widget = Widget()
+            layout = BoxLayout(0 if typ == 'left' else 2, widget)
+            for w in content:
+                layout.addWidget(w)
+            return widget
+        
+        def Left(*content):
+            return box('left', content)
+        
+        def Top(*content):
+            return box('top', content)
+
+        self.label1 = Label('From:', objectName='label1')
+        self.label2 = Label('To:', objectName='label2')
+        self.combo1 = ComboBox(objectName='combo1')
+        self.combo2 = ComboBox(objectName='combo2')
+        self.button = Button('Play', objectName='button')
+
         self.label1.setFixedWidth(50)
-        self.combo1 = ComboBox()
-        hbox1 = HBoxLayout()
-        hbox1.addWidget(self.label1)
-        hbox1.addWidget(self.combo1)
-        self.label2 = Label('To:')
-        self.label2.setFixedWidth(50)
-        self.combo2 = ComboBox()
-        hbox2 = HBoxLayout()
-        hbox2.addWidget(self.label2)
-        hbox2.addWidget(self.combo2)
-        vbox = VBoxLayout()
-        vbox.addLayout(hbox1)
-        vbox.addLayout(hbox2)
-        hbox3 = HBoxLayout()
-        hbox3.addLayout(vbox)
-        self.button = Button("play")
+        self.label2.setFixedWidth(50)        
         self.button.setFixedSize(100, 100)
-        hbox3.addWidget(self.button)
-        self.layout().addLayout(hbox3)
+
+        self.ui = \
+          Top(
+              Left(
+                  Top(
+                      Left( self.label1, self.combo1 ),
+                      Left( self.label2, self.combo2 )
+                  ),
+                  self.button
+              )
+          )
+
+        self.setLayout(self.ui.layout())
+        self.setStyleSheet('')
+
         self.button.clicked.connect(self.on_play_clicked)
 
         self.proc = Process(self.cmd, self.on_receive, self.on_stop)
