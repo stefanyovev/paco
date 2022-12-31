@@ -6,8 +6,7 @@ from PyQt5.QtWidgets import \
     QComboBox as ComboBox, \
     QSlider as Slider, \
     QPushButton as Button, \
-    QHBoxLayout as HBoxLayout, \
-    QVBoxLayout as VBoxLayout
+    QBoxLayout as BoxLayout
 
 from PyQt5.QtCore import \
     pyqtSignal as signal, \
@@ -101,7 +100,7 @@ class MainWindow(Widget):
 
         self.setWindowTitle("Paco")
         self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint)
-        self.setFixedSize(900, 300)
+        self.setFixedSize(1900, 300)
 
         def box(typ, content):
             widget = Widget()
