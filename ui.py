@@ -100,7 +100,7 @@ class MainWindow(Widget):
 
         self.setWindowTitle("Paco")
         self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint)
-        self.setFixedSize(1900, 300)
+        self.setFixedSize(1900, 600)
 
         def box(typ, content):
             widget = Widget()
