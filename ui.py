@@ -29,6 +29,24 @@ from functools import \
 import os, sys
 
 
+def box(typ, content):
+    widget = Widget()
+    layout = BoxLayout(0 if typ == 'left' else 2, widget)
+    layout.setContentsMargins(0, 0, 0, 0)
+    if content and type(content[0]) is str:
+        widget.setObjectName(content[0])
+        content = content[1:]
+    for w in content:
+        layout.addWidget(w)
+    return widget
+
+def Left(*content):
+    return box('left', content)
+
+def Top(*content):
+    return box('top', content)
+
+
 class ReadLoop(Thread):
 
     sig_receive = signal(str)
@@ -90,25 +108,6 @@ class Process(Thread):
 
     def stop(self):
         self.proc.kill()
-
-
-def box(typ, content):
-    widget = Widget()
-    layout = BoxLayout(0 if typ == 'left' else 2, widget)
-    layout.setContentsMargins(0, 0, 0, 0)
-    if content and type(content[0]) is str:
-        widget.setObjectName(content[0])
-        content = content[1:]
-    for w in content:
-        layout.addWidget(w)
-    return widget
-
-def Left(*content):
-    return box('left', content)
-
-def Top(*content):
-    return box('top', content)
-
 
 
 class GUIShellApp(Object):
@@ -186,11 +185,9 @@ class PACO_GUI(GUIShellApp):
           """)
 
         super().__init__()
-        
         self.button.clicked.connect(self.on_play_clicked)
-        
         self.sig_core_output.connect(self.on_receive)
-
+        self.sig_core_stopped.connect(exit)
         self.routes = []
         self.rows = []
           
@@ -201,6 +198,7 @@ class PACO_GUI(GUIShellApp):
         slider.setRange(0, 10000)
         slider.valueChanged.connect(partial(self.set_route_delay, sd, dd))
         row = Top(label1, Left(label2, slider))
+        row.setStyleSheet(""" max-height: 100px; """)
         self.rows.append(row)
         self.ui.layout().addWidget(row)
     
