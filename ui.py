@@ -11,6 +11,7 @@ from PyQt5.QtWidgets import \
 from PyQt5.QtCore import \
     pyqtSignal as signal, \
     QThread as Thread, \
+    QObject as Object, \
     Qt
 
 from subprocess import \
@@ -91,43 +92,77 @@ class Process(Thread):
         self.proc.kill()
 
 
-class MainWindow(Widget):
+def box(typ, content):
+    widget = Widget()
+    layout = BoxLayout(0 if typ == 'left' else 2, widget)
+    layout.setContentsMargins(0, 0, 0, 0)
+    if content and type(content[0]) is str:
+        widget.setObjectName(content[0])
+        content = content[1:]
+    for w in content:
+        layout.addWidget(w)
+    return widget
+
+def Left(*content):
+    return box('left', content)
+
+def Top(*content):
+    return box('top', content)
+
+
+
+class GUIShellApp(Object):
+    """ To be Extended.
+        __init__ assumes class member 'cmd'.
+        __init__ assumes instance member 'ui'. """
+        
+    sig_core_output = signal(str)
+    sig_core_stopped = signal(int)
+
+    def __init__(self):
+        super().__init__()
+    
+        self.core = Process(
+            self.cmd,
+            self.sig_core_output,
+            self.sig_core_stopped)
+        
+        self.ui.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint)
+        self.ui.setWindowTitle(self.cmd+' UI')
+        self.ui.setObjectName('root')
+        self.ui.closeEvent = self.ui_close_event        
+        self.ui.show()
+
+    def stop(self):
+        self.core.stop()
+
+    def ui_close_event(self, e):
+        self.stop()
+
+    def exec(self):
+        return self.app.exec()
+
+
+# ----------------------------------------------------------------------------
+
+
+class PACO_GUI(GUIShellApp):
 
     cmd = "main.exe"
+    
+    def __init__(self):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.setWindowTitle("Paco")
-        self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint)
-        self.setFixedSize(1900, 600)
-
-        def box(typ, content):
-            widget = Widget()
-            layout = BoxLayout(0 if typ == 'left' else 2, widget)
-            for w in content:
-                layout.addWidget(w)
-            return widget
+        self.app = Application([])
         
-        def Left(*content):
-            return box('left', content)
-        
-        def Top(*content):
-            return box('top', content)
-
         self.label1 = Label('From:', objectName='label1')
         self.label2 = Label('To:', objectName='label2')
         self.combo1 = ComboBox(objectName='combo1')
         self.combo2 = ComboBox(objectName='combo2')
         self.button = Button('Play', objectName='button')
 
-        self.label1.setFixedWidth(50)
-        self.label2.setFixedWidth(50)        
-        self.button.setFixedSize(100, 100)
-
         self.ui = \
           Top(
-              Left(
+              Left('head',
                   Top(
                       Left( self.label1, self.combo1 ),
                       Left( self.label2, self.combo2 )
@@ -136,41 +171,50 @@ class MainWindow(Widget):
               )
           )
 
-        self.setLayout(self.ui.layout())
-        self.setStyleSheet('')
+        self.ui.setStyleSheet("""
+          #root {
+            min-width: 1900px; max-width: 1900px;
+            min-height: 600px; max-height: 600px; }
+          #head {
+            max-height: 150px;
+            background-color: gray; }
+          #label1, #label2 {
+            min-width: 100px; max-width: 100px; }
+          #button {
+            min-width: 100px; max-width: 100px;
+            min-height: 100px; max-height: 100px; }
+          """)
 
+        super().__init__()
+        
         self.button.clicked.connect(self.on_play_clicked)
+        
+        self.sig_core_output.connect(self.on_receive)
 
-        self.proc = Process(self.cmd, self.on_receive, self.on_stop)
-        
         self.routes = []
-        
+        self.rows = []
+          
     def add_route_row(self, sd, dd):
-        vbox = VBoxLayout()
-        vbox.addWidget(Label('Route %s -> %s' % (sd, dd)))
-        hbox = HBoxLayout()
-        hbox.addWidget(Label('Delay:'))
+        label1 = Label('Route %s -> %s' % (sd, dd))
+        label2 = Label('Delay:')
         slider = Slider(Qt.Horizontal)
         slider.setRange(0, 10000)
-        hbox.addWidget(slider)
-        vbox.addLayout(hbox)
         slider.valueChanged.connect(partial(self.set_route_delay, sd, dd))
-        self.layout().addLayout(vbox)
+        row = Top(label1, Left(label2, slider))
+        self.rows.append(row)
+        self.ui.layout().addWidget(row)
     
     def set_route_delay(self, sd, dd, val):
         cmd = '%s 0 %s 0 %s\n%s 1 %s 1 %s' % (sd, dd, val, sd, dd, val)
-        self.proc.send(cmd)
+        self.core.send(cmd)
 
     def on_play_clicked(self, e):
         sd = fullmatch("\s+([0-9]+)\s+.*", self.combo1.currentText()).groups()[0]
         dd = fullmatch("\s+([0-9]+)\s+.*", self.combo2.currentText()).groups()[0]
         self.routes.append((sd, dd))
         cmd = '%s 0 %s 0\n%s 1 %s 1' % (sd, dd, sd, dd)
-        self.proc.send(cmd)
+        self.core.send(cmd)
         self.add_route_row(sd, dd)
-
-    def closeEvent(self, e):
-        self.proc.stop()
 
     def on_receive(self, data):
         print(data)
@@ -181,18 +225,12 @@ class MainWindow(Widget):
             if g[1] != '-': self.combo1.addItem(name)
             if g[2] != '-': self.combo2.addItem(name)
 
-    def on_stop(self, retcode):
-        os.exit(retcode)
-
 
 if __name__ == '__main__':
 
-    app = Application([])
+    app = PACO_GUI()
 
-    win = MainWindow()
-    win.show()
-
-    stdin = ReadLoop(sys.stdin.buffer, win.proc.send)
+    stdin = ReadLoop(sys.stdin.buffer, app.core.send)
 
     try:
         app.exec()
