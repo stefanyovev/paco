@@ -29,7 +29,10 @@ from functools import \
 import os, sys
 
 
-def box(typ, content):
+# ----------------------------------------------------------------------------
+
+
+def Box(typ, content):
     widget = Widget()
     layout = BoxLayout(0 if typ == 'left' else 2, widget)
     layout.setContentsMargins(0, 0, 0, 0)
@@ -42,11 +45,14 @@ def box(typ, content):
 
 
 def Left(*content):
-    return box('left', content)
+    return Box('left', content)
 
 
 def Top(*content):
-    return box('top', content)
+    return Box('top', content)
+
+
+# ----------------------------------------------------------------------------
 
 
 class ReadThread(Thread):
@@ -65,7 +71,6 @@ class ReadThread(Thread):
             if not new_data:
                 break
             self.sig_receive.emit(new_data)
-        print('\n[%s DONE]\n' % self.handle)
 
 
 class Process(Thread):
@@ -89,7 +94,6 @@ class Process(Thread):
                 self.sig_stop.emit(retcode)
                 break
             sleep(0.0333)
-        print('\n[PROC DONE]\n')
 
     def send(self, data):
         self.proc.stdin.write(bytes(data, encoding='ascii'))
@@ -103,7 +107,7 @@ class Process(Thread):
 # ----------------------------------------------------------------------------
 
 
-class PACO_GUI(Application):
+class PACOUI(Application):
 
     def __init__(self):
         super().__init__([])
@@ -143,7 +147,7 @@ class PACO_GUI(Application):
         self.ui.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint)
         self.ui.show()
 
-        self.core = Process('main.exe', self.on_receive, exit)
+        self.core = Process('main.exe', self.on_receive, os._exit)
         self.stdin_observer = ReadThread(sys.stdin.buffer, self.core.send)
 
         self.button.clicked.connect(self.on_play_clicked)
@@ -195,14 +199,16 @@ class PACO_GUI(Application):
 
     def closeEvent(self, e):
         self.core.stop()
+        sys.stdin.buffer.raw.close()
+
+
+# ----------------------------------------------------------------------------
 
 
 if __name__ == '__main__':
 
     try:
-        PACO_GUI().exec()
+        PACOUI().exec()
     except:
         print('ERR\n')
         sleep(5)
-
-    sys.stdin.buffer.raw.close()
