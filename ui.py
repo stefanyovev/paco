@@ -209,6 +209,7 @@ if __name__ == '__main__':
 
     try:
         PACOUI().exec()
-    except:
-        print('ERR\n')
+    except Exceptoin as e:
+        print('ERROR')
+        print(str(e))
         sleep(5)
