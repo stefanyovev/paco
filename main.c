@@ -14,7 +14,7 @@
 	#define FAIL 1
 	#define OK 0
 
-	#define SR 44100
+	#define SR 48000
 
 	int srate = SR;				// sample rate [samples/second]
 	int hsize = SR;				// history size [samples]
