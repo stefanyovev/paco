@@ -16,10 +16,8 @@ todos:
    callback time total, gettime() total?, log callback timestamps & args in file
    desync measure (displacement)
    clear, save (as text), load
+   resync btn
 
 Note:
    Even the underrun is somehow handled, overruns may silently delay streams.
    Still necessary to resync every 5-10 minutes ..
-
-Note:
-   Master not tested. Use 1.2.0.
