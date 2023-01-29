@@ -137,7 +137,7 @@
                     continue;
 
                 if( R->last_cursor == 0 ){
-                    lag = (int) ceil( dev->max_out_asize * 2.2 );
+                    lag = (int) ceil( dev->max_out_asize * 6.2 );
                     if( lag > Lag ){
                         Lag = lag;
                         resync(); }
@@ -358,7 +358,9 @@
                 GetDlgItemText( hwnd, CMB2, txt, 255 );
                 sscanf( txt, "  %3d", &dd );
 
-                int res = route_add( sd, 0, dd, 0, 0 );
+                int res =
+                route_add( sd, 0, dd, 0, 0 );
+                route_add( sd, 1, dd, 1, 0 );
                 sprintf( txt, "%s", res == FAIL ? "FAIL" : "OK" );
                 
                 MessageBox( hwnd, txt, "", MB_OK );
