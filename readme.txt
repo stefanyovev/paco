@@ -2,7 +2,7 @@
    Paco Sound Router
 
 Goal:
-   Realtime DSP crossover for Windows supporting multiple device drivers at the same time.
+   Realtime DSP crossover for Windows supporting multiple devices at the same time.
 
 How:
    Install VB Audio VB Cable or other virtual audio cable and make it the default windows playback device.
