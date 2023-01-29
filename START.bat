@@ -2,24 +2,15 @@
 @set LIBRARY_PATH=%~dp0%lib
 @set PATH=%PATH%%LIBRARY_PATH%;
 
-@tcc -llibportaudio64bit main.c -o main.exe
-@if %errorlevel% neq 0 goto compileerror
+@tcc -lportaudio -luser32 -lgdi32 main.c -o paco.exe
 
-@where py 2>NUL
-@if %errorlevel% neq 0 goto nopy
+@if %errorlevel% neq 0 goto error
 
-@py -3 ui.py
-@goto enddd
+@paco.exe
+@goto endd
 
-:nopy
-@echo ************************************************
-@echo *** Install Python to use this APP with GUI! ***
-@echo ************************************************
-@main.exe
-@goto enddd
-
-:compileerror
+:error
 @echo ERROR compiling main.c
 @pause
 
-:enddd
+:endd
