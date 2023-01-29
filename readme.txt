@@ -1,7 +1,5 @@
 
-   Paco Sound Router
-
-Goal:
+What:
    Realtime DSP crossover for Windows supporting multiple devices at the same time.
 
 How:
