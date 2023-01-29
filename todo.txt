@@ -1,0 +1,29 @@
+
+
+    add_route
+        add to routes
+        set dev used ins/outs
+
+    device
+        used_ins
+        used_outs        
+        heating
+        in_stats { t, framecount }
+        out_stats { t, framecount }
+        max_in_eff_asize
+        max_out_eff_asize
+        in_lag = max_eff_asize +max_eff_asize*avance
+
+    tick:
+        loop only used
+        if a route is buffering just memset 0 it at the end so cpu usage is real while heating
+        make every moment ok to move cursor from another thr
+
+    use_device
+        heat/wait 10 buffers or 200ms
+        get min/max (eff) asize
+        set lag
+
+    assert V max_XX_asize < 5*asize (csize head)
+    assert no two tails at the same time.. or just pre/post whole lanes (mem *3)
+    assert memsettting double/float to 0 makes it == 0
