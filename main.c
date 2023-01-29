@@ -100,7 +100,7 @@
         
         device *dev = (device*) self;		
         route *R;
-        int sd, sc, dd, dc, lag, missing, ofs, n, kn, i, x;
+        int sd, sc, dd, dc, lag, missing, sig_resync, ofs, n, kn, i, x;
         long cursor;
         float *sig;
 
@@ -121,13 +121,18 @@
             dev->in_len += frameCount; }
 
         if( output ){
+        
             if( dev->max_out_asize < frameCount )
                 dev->max_out_asize = frameCount;
+                
+            sig_resync = 0;
+            
             // ################################################################################################ // ROUTE TICK
             for( dc=0; dc < dev->nouts; dc++ ){
             
-                dd = dev->id;
                 R = dev->outs +dc;
+                
+                dd = dev->id;
                 sd = R->sd;
                 sc = R->sc;
                 
@@ -137,7 +142,7 @@
                     continue;
 
                 if( R->last_cursor == 0 ){
-                    lag = (int) ceil( dev->max_out_asize * 6.2 );
+                    lag = (int) ceil( dev->max_out_asize * 2.0 );
                     if( lag > Lag ){
                         Lag = lag;
                         resync(); }
@@ -153,11 +158,11 @@
                 if( cursor +frameCount > devs[sd].in_len ){
                     missing = cursor +frameCount -devs[sd].in_len;
                     PRINT( "![%d.%d -> %d.%d] REPLAY %d samples. underrun. \n ", sd, sc, dd, dc, missing ); }
-                    
-                ofs = (cursor -(R->delay) -missing) % msize;
 
                 if( missing > 0 )
-                    resync();
+                    sig_resync = 1;
+                    
+                ofs = (cursor -(R->delay) -missing) % msize;
 
                 if( ofs +frameCount > msize )
                     memcpy( devs[sd].ins +sc*csize +tsize +msize, devs[sd].ins +sc*csize +tsize, (ofs +frameCount -msize)*sizeof(float) );
@@ -172,7 +177,10 @@
                 R->last_cursor = cursor +frameCount; } 
                 
                 // ############################################################################################### // /ROUTE MAIN				
-                
+            
+            if( sig_resync )
+                resync();
+            
             if( dev->out_t0 == .0 )
                 dev->out_t0 = NOW;
                 
