@@ -1,6 +1,6 @@
 
 What:
-   Realtime DSP crossover for Windows supporting multiple devices at the same time.
+   Sound Splitter for Windows supporting multiple devices at the same time.
 
 How:
    If your sound card has 'Stereo Mix' - enable it, otherwise -
