@@ -238,11 +238,11 @@
             return FAIL;
         while( R->last_cursor == 0 ); // wait
         if( nroutes == 0 ){
-            routes = (route*) malloc( sizeof(void*) );
+            routes = (route**) malloc( sizeof(void*) );
             routes[0] = R;
             nroutes = 1; }
         else {
-            route *new_routes = (route*) malloc( sizeof(void*) * (nroutes+1) );
+            route **new_routes = (route**) malloc( sizeof(void*) * (nroutes+1) );
             memcpy( new_routes, routes, nroutes );
             free( routes );
             routes = new_routes;
