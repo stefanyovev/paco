@@ -19,13 +19,12 @@
 
     #define SR 48000
 
+    int srate = SR;			                   // sample rate [samples/second]
     double stime = 1.0 / SR;		           // sample duration [seconds]
 
-    int srate = SR;			                   // sample rate [samples/second]
     int msize = SR;                            // channel memory size [samples]
-    int tsize = SR / 20;                       // tail size [samples]
-    int asize = SR / 50;                       // desired frameCount [samples]
-    int csize; // = tsize + msize + 5*asize    // input channel struct size [samples]
+    int tsize = SR / 20;                       // tail size [samples]    
+    int csize; // = tsize + msize * 2          // channel struct size [samples]
 
     double T0;                                 // program t0 [seconds]
     #define NOW ((long)(ceil((PaUtil_GetTime()-T0)/stime))) // [samples]
@@ -41,7 +40,7 @@
         int ksize;
         float* k; };
     typedef struct route route;	
-    route *routes = 0;
+    route **routes = 0;
     int nroutes = 0;
 
 
@@ -52,9 +51,9 @@
         int nins, nouts;
         float *ins;
         route *outs;
-        double in_t0, out_t0;
+        long in_t0, out_t0;
         long in_len, out_len;
-        int max_in_asize, max_out_asize; };
+        int max_in_frameCount, max_out_frameCount; };
     typedef struct device device;
     device *devs = 0;
     int ndevs = 0;
@@ -68,7 +67,7 @@
         T0 = PaUtil_GetTime();
         devs = (device*) malloc( sizeof(device) * ndevs );
         memset( devs, 0, sizeof(device) * ndevs );
-        csize = tsize + msize + 5*asize;
+        csize = tsize + msize * 2;
         for( int i=0; i<ndevs; i++ ){            
             devs[i].id = i;
             devs[i].info = Pa_GetDeviceInfo( i );
@@ -105,8 +104,8 @@
         float *sig;
 
         if( input ){
-            if( dev->max_in_asize < frameCount )
-                dev->max_in_asize = frameCount;
+            if( dev->max_in_frameCount < frameCount )
+                dev->max_in_frameCount = frameCount;
             ofs = dev->in_len % msize;
             if( ofs +frameCount <= msize )
                 for( i=0; i< dev->nins; i++ )
@@ -116,14 +115,14 @@
                 for( int i=0; i< dev->nins; i++ ){
                     memcpy( dev->ins +i*csize +tsize +ofs, input[i], (frameCount-x)*sizeof(float) );
                     memcpy( dev->ins +i*csize +tsize, input[i]+(frameCount-x), x*sizeof(float) ); }}
-            if( dev->in_t0 == .0 )
+            if( dev->in_t0 == 0 )
                 dev->in_t0 = NOW;
             dev->in_len += frameCount; }
 
         if( output ){
         
-            if( dev->max_out_asize < frameCount )
-                dev->max_out_asize = frameCount;
+            if( dev->max_out_frameCount < frameCount )
+                dev->max_out_frameCount = frameCount;
                 
             sig_resync = 0;
             
@@ -142,27 +141,30 @@
                     continue;
 
                 if( R->last_cursor == 0 ){
-                    lag = (int) ceil( dev->max_out_asize * 2.0 );
+                    lag = dev->max_out_frameCount * 2;
                     if( lag > Lag ){
                         Lag = lag;
                         resync(); }
-                    cursor = NOW -devs[sd].in_t0 -Lag;
+                    R->last_cursor = NOW -devs[sd].in_t0 -Lag;
+                    if( R->last_cursor < 0  ){
+                        R->last_cursor = 0;
+                        continue; }
                     PRINT( "[%d.%d -> %d.%d] INIT; Lag %d; delay %d; cursor %d \n ", sd, sc, dd, dc, Lag, R->delay, cursor ); }
-                else	
-                    cursor = R->last_cursor;
-
-                if( cursor < 0  )
-                    continue;
+                
+                cursor = R->last_cursor;
 
                 missing = 0;
                 if( cursor +frameCount > devs[sd].in_len ){
                     missing = cursor +frameCount -devs[sd].in_len;
-                    PRINT( "![%d.%d -> %d.%d] REPLAY %d samples. underrun. \n ", sd, sc, dd, dc, missing ); }
+                    PRINT( "![%d.%d -> %d.%d] REPLAY %d samples. underrun. \n ", sd, sc, dd, dc, missing );
+                    sig_resync = 1; }
 
-                if( missing > 0 )
-                    sig_resync = 1;
-                    
-                ofs = (cursor -(R->delay) -missing) % msize;
+                cursor -= R->delay+missing;
+                
+                if( cursor < 0 )
+                    continue;
+
+                ofs = cursor % msize;
 
                 if( ofs +frameCount > msize )
                     memcpy( devs[sd].ins +sc*csize +tsize +msize, devs[sd].ins +sc*csize +tsize, (ofs +frameCount -msize)*sizeof(float) );
@@ -174,14 +176,14 @@
                     for( kn=0; kn < R->ksize; kn++ )
                         output[dc][n] += R->k[kn]*sig[n-kn]; }
 
-                R->last_cursor = cursor +frameCount; } 
+                R->last_cursor += frameCount; }
                 
                 // ############################################################################################### // /ROUTE MAIN				
             
             if( sig_resync )
                 resync();
             
-            if( dev->out_t0 == .0 )
+            if( dev->out_t0 == 0 )
                 dev->out_t0 = NOW;
                 
             dev->out_len += frameCount; }
@@ -196,13 +198,13 @@
         in_params.device = dev->id;
         in_params.sampleFormat = paFloat32|paNonInterleaved;
         in_params.hostApiSpecificStreamInfo = 0;
-        in_params.suggestedLatency = asize *stime;
+        in_params.suggestedLatency = dev->info->defaultLowInputLatency;
         in_params.channelCount = dev->nins;
         static PaStreamParameters out_params;
         out_params.device = dev->id;
         out_params.sampleFormat = paFloat32|paNonInterleaved;
         out_params.hostApiSpecificStreamInfo = 0;
-        out_params.suggestedLatency = asize *stime;
+        out_params.suggestedLatency = dev->info->defaultLowOutputLatency;
         out_params.channelCount = dev->nouts;
         PaError err = Pa_OpenStream( &(dev->stream),
             dev->nins ? &in_params : 0, dev->nouts ? &out_params : 0, srate,
@@ -225,22 +227,28 @@
         return OK; }
 
 
-    route *rr = 0;
-    int route_add( int sd, int sc, int dd, int dc, int d ) {                                              // +ROUTE
+    int route_add( int sd, int sc, int dd, int dc ) {                                                  // +ROUTE
         route *R = (devs+dd)->outs+dc;
-        if( R->sd == sd && R->sc == sc ){
-            if( R->delay != d )
-                R->delay += d - R->delay; 
-            return OK; }
         R->sd = sd; R->sc = sc;
         R->dd = dd; R->dc = dc;
-        R->delay = d;
-        if( !devs[sd].in_len ) use_device( &devs[sd] );
-        if( !devs[dd].out_len ) use_device( &devs[dd] );
+        R->delay = 0;
+        if( !devs[sd].in_len ) use_device( devs+sd );
+        if( !devs[dd].out_len ) use_device( devs+dd );
         if( !devs[sd].in_len || !devs[dd].out_len )
             return FAIL;
         while( R->last_cursor == 0 ); // wait
-        rr = R;
+        if( nroutes == 0 ){
+            routes = (route*) malloc( sizeof(void*) );
+            routes[0] = R;
+            nroutes = 1; }
+        else {
+            route *new_routes = (route*) malloc( sizeof(void*) * (nroutes+1) );
+            memcpy( new_routes, routes, nroutes );
+            free( routes );
+            routes = new_routes;
+            routes[nroutes] = R;
+            nroutes += 1;
+        }
         return OK; }
 
 
@@ -276,6 +284,7 @@
         hdcMem = CreateCompatibleDC( hdc );
         HBITMAP hbmOld = (HBITMAP) SelectObject( hdcMem, hbmp );
         RECT rc;
+        route *R;
         
         char txt[100000];
         //GetClientRect( hwnd, &rc );        
@@ -297,13 +306,14 @@
             SendMessage( hCombo2, CB_SETCURSEL, (WPARAM)0, (LPARAM)0 ); }
 
         for( ; ; ){
-            if( rr ){
+            if( nroutes ){
+                R = routes[nroutes-1];
             
                 memset( pixels, 128, width*height*4 );
             
                 double Q = (((double)width)/((double)vw));            
-                int x1 = (int)ceil(    Q*( (double)devs[rr->sd].in_t0 + (double)rr->last_cursor        -(double)NOW  +(((double)vw)/2.0)   )   );
-                int x2 = (int)ceil(    Q*( (double)devs[rr->sd].in_t0 + (double)devs[rr->sd].in_len    -(double)NOW  +(((double)vw)/2.0)   )   );
+                int x1 = (int)ceil(    Q*( (double)devs[R->sd].in_t0 + (double)R->last_cursor        -(double)NOW  +(((double)vw)/2.0)   )   );
+                int x2 = (int)ceil(    Q*( (double)devs[R->sd].in_t0 + (double)devs[R->sd].in_len    -(double)NOW  +(((double)vw)/2.0)   )   );
 
                 Rectangle( hdcMem, x1, height/2+height/20, x2, height/2-height/20 ); // LRTB
                 MoveToEx( hdcMem, width/2, height/2-height/10, 0 );
@@ -311,7 +321,7 @@
 
                 GetClientRect( hwnd, &rc );            
                 sprintf( txt, "give %d\nget %d\ninlen %d\ncursor %d\nLag %d\nview width %d samples\nsrc outlen %d\ndst inlen %d",
-                    devs[rr->sd].max_in_asize, devs[rr->dd].max_out_asize, devs[rr->sd].in_len, rr->last_cursor, Lag, vw, devs[rr->sd].out_len, devs[rr->dd].in_len );
+                    devs[R->sd].max_in_frameCount, devs[R->dd].max_out_frameCount, devs[R->sd].in_len, R->last_cursor, Lag, vw, devs[R->sd].out_len, devs[R->dd].in_len );
                 DrawText( hdcMem, (const char*) &txt, -1, &rc, DT_CENTER );
             
                 BitBlt( hdc, 0, 70, width, height, hdcMem, 0, 0, SRCCOPY ); 
@@ -367,11 +377,11 @@
                 sscanf( txt, "  %3d", &dd );
 
                 int res =
-                route_add( sd, 0, dd, 0, 0 );
-                route_add( sd, 1, dd, 1, 0 );
-                sprintf( txt, "%s", res == FAIL ? "FAIL" : "OK" );
+                route_add( sd, 0, dd, 0 );
+                route_add( sd, 1, dd, 1 );
                 
-                MessageBox( hwnd, txt, "", MB_OK );
+                if( res == FAIL )
+                    MessageBox( hwnd, "FAIL", "", MB_OK );
             }
 
             break;
