@@ -1,5 +1,4 @@
 
-
    Sound Splitter for Windows supporting multiple devices at the same time.
 
 How:
