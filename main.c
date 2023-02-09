@@ -18,6 +18,8 @@
     #define PRINT printf
 
     #define SR 48000
+    
+    #define latency_multiplier 2.0
 
     int srate = SR;			                   // sample rate [samples/second]
     double stime = 1.0 / SR;		           // sample duration [seconds]
@@ -33,13 +35,22 @@
 
     float k[1] = {1.0};                        // default fir
 
+    #define NSTATS 100
+
+
+    struct stat {                                                                            // STAT
+        long t, avail, frameCount; };
+    typedef struct stat stat;
+
 
     struct route {                                                                           // ROUTE
         int sd, sc, dd, dc, delay;
         long last_cursor;
         int ksize;
-        float* k; };
-    typedef struct route route;	
+        float* k;
+        stat *stats;
+        int cstat; };
+    typedef struct route route;
     route **routes = 0;
     int nroutes = 0;
 
@@ -53,37 +64,49 @@
         route *outs;
         long in_t0, out_t0;
         long in_len, out_len;
-        int max_in_frameCount, max_out_frameCount; };
+        int max_in_frameCount, max_out_frameCount;
+        stat *instats;
+        int cinstat; };
     typedef struct device device;
     device *devs = 0;
     int ndevs = 0;
 
 
     int init() {                                                                                // INIT
-        if( Pa_Initialize() ){ PRINT( "ERROR: Pa_Initialize rubbish \n" ); return FAIL; }
+        if( Pa_Initialize() ){
+            PRINT( "ERROR: Pa_Initialize rubbish \n" );
+            return FAIL; }
         ndevs = Pa_GetDeviceCount();
-        if( ndevs <= 0 ) { PRINT( "ERROR: No Devices Found \n" ); return FAIL; }
+        if( ndevs <= 0 ) {
+            PRINT( "ERROR: No Devices Found \n" );
+            return FAIL; }
         PaUtil_InitializeClock();
         T0 = PaUtil_GetTime();
         devs = (device*) malloc( sizeof(device) * ndevs );
         memset( devs, 0, sizeof(device) * ndevs );
         csize = tsize + msize * 2;
-        for( int i=0; i<ndevs; i++ ){            
-            devs[i].id = i;
-            devs[i].info = Pa_GetDeviceInfo( i );
-            devs[i].nins = devs[i].info->maxInputChannels;
-            devs[i].nouts = devs[i].info->maxOutputChannels;
-            devs[i].ins = (float*) malloc( devs[i].nins * csize * sizeof(float) );
-            devs[i].outs = (route*) malloc( devs[i].nouts * sizeof(route) );
-            memset( devs[i].ins, 0, devs[i].nins * csize * sizeof(float) );
-            memset( devs[i].outs, 0, devs[i].nouts * sizeof(route) );
-            for( int j=0; j<devs[i].nouts; j++ ){
-                devs[i].outs[j].ksize = 1;
-                devs[i].outs[j].k = k; }}
+        device *dev = devs;
+        for( int i=0; i<ndevs; i++ ){
+            dev = devs+i;
+            dev->id = i;
+            dev->info = Pa_GetDeviceInfo( i );
+            dev->nins = dev->info->maxInputChannels;
+            dev->nouts = dev->info->maxOutputChannels;
+            dev->ins = (float*) malloc( dev->nins * csize * sizeof(float) );
+            dev->outs = (route*) malloc( dev->nouts * sizeof(route) );
+            dev->instats = (stat*) malloc( NSTATS * sizeof(stat) );
+            memset( dev->ins, 0, dev->nins * csize * sizeof(float) );
+            memset( dev->outs, 0, dev->nouts * sizeof(route) );
+            memset( dev->instats, 0, NSTATS * sizeof(stat) );
+            for( route *R = dev->outs; R < dev->outs + dev->nouts; R++ ){
+                R->ksize = 1; R->k = k;
+                R->stats = (stat*) malloc( NSTATS * sizeof(stat) );
+                memset( R->stats, 0, NSTATS * sizeof(stat) ); }}
         return OK; }
 
 
-    void resync(){                                                                             // RESYNC
+    int nresyncs=0;
+    void resync(){ nresyncs++;                                                                  // RESYNC
         for( int i=0; i<ndevs; i++ )
             for( int j=0; j<devs[i].nouts; j++ )
                 devs[i].outs[j].last_cursor = 0; }
@@ -100,7 +123,7 @@
         device *dev = (device*) self;		
         route *R;
         int sd, sc, dd, dc, lag, missing, sig_resync, ofs, n, kn, i, x;
-        long cursor;
+        long cursor, now;
         float *sig;
 
         if( input ){
@@ -117,7 +140,14 @@
                     memcpy( dev->ins +i*csize +tsize, input[i]+(frameCount-x), x*sizeof(float) ); }}
             if( dev->in_t0 == 0 )
                 dev->in_t0 = NOW;
-            dev->in_len += frameCount; }
+            dev->in_len += frameCount; // commit input
+            now = NOW;
+            dev->instats[dev->cinstat].t = now;
+            dev->instats[dev->cinstat].avail = dev->in_t0 + dev->in_len - now;
+            dev->instats[dev->cinstat].frameCount = frameCount;
+            dev->cinstat++;
+            if( dev->cinstat == NSTATS )
+                dev->cinstat = 0; }
 
         if( output ){
         
@@ -126,9 +156,9 @@
                 
             sig_resync = 0;
             
+            now = NOW;
             // ################################################################################################ // ROUTE TICK
             for( dc=0; dc < dev->nouts; dc++ ){
-            
                 R = dev->outs +dc;
                 
                 dd = dev->id;
@@ -145,7 +175,7 @@
                     if( lag > Lag ){
                         Lag = lag;
                         resync(); }
-                    R->last_cursor = NOW -devs[sd].in_t0 -Lag;
+                    R->last_cursor = now -devs[sd].in_t0 -Lag;
                     if( R->last_cursor < 0  ){
                         R->last_cursor = 0;
                         continue; }
@@ -177,18 +207,28 @@
                         output[dc][n] += R->k[kn]*sig[n-kn]; }
 
                 R->last_cursor += frameCount; }
-                
-                // ############################################################################################### // /ROUTE MAIN				
-            
+                            
+            // ############################################################################################### // /ROUTE MAIN
+
+            now = NOW; // + the time to tick end in samples
+            for( dc=0; dc < dev->nouts; dc++ ){
+                R = dev->outs +dc;
+                R->stats[R->cstat].t = now;
+                //R->stats[R->cstat].avail = ;
+                R->stats[R->cstat].frameCount = frameCount;
+                R->cstat++;
+                if( R->cstat == NSTATS )
+                    R->cstat = 0; }
+
             if( sig_resync )
                 resync();
-            
+            // else
             if( dev->out_t0 == 0 )
                 dev->out_t0 = NOW;
                 
             dev->out_len += frameCount; }
                 
-        return paContinue; }
+        return paContinue; } // commit output
 
             
     int use_device( device *dev ){                                                                      // +DEVICE
@@ -198,13 +238,13 @@
         in_params.device = dev->id;
         in_params.sampleFormat = paFloat32|paNonInterleaved;
         in_params.hostApiSpecificStreamInfo = 0;
-        in_params.suggestedLatency = dev->info->defaultLowInputLatency;
+        in_params.suggestedLatency = dev->info->defaultLowInputLatency * latency_multiplier;
         in_params.channelCount = dev->nins;
         static PaStreamParameters out_params;
         out_params.device = dev->id;
         out_params.sampleFormat = paFloat32|paNonInterleaved;
         out_params.hostApiSpecificStreamInfo = 0;
-        out_params.suggestedLatency = dev->info->defaultLowOutputLatency;
+        out_params.suggestedLatency = dev->info->defaultLowOutputLatency * latency_multiplier;
         out_params.channelCount = dev->nouts;
         PaError err = Pa_OpenStream( &(dev->stream),
             dev->nins ? &in_params : 0, dev->nouts ? &out_params : 0, srate,
@@ -247,8 +287,7 @@
             free( routes );
             routes = new_routes;
             routes[nroutes] = R;
-            nroutes += 1;
-        }
+            nroutes += 1; }
         return OK; }
 
 
@@ -285,6 +324,7 @@
         HBITMAP hbmOld = (HBITMAP) SelectObject( hdcMem, hbmp );
         RECT rc;
         route *R;
+        POINT ps1[NSTATS*2], ps2[NSTATS];
         
         char txt[100000];
         //GetClientRect( hwnd, &rc );        
@@ -306,27 +346,43 @@
             SendMessage( hCombo2, CB_SETCURSEL, (WPARAM)0, (LPARAM)0 ); }
 
         for( ; ; ){
-            if( nroutes ){
+            if( nroutes ){ // ######################################################################################################
                 R = routes[nroutes-1];
+                
+                long now = NOW - devs[R->sd].in_t0;
             
                 memset( pixels, 128, width*height*4 );
-            
+                
+                /* -- */
                 double Q = (((double)width)/((double)vw));            
                 int x1 = (int)ceil(    Q*( (double)devs[R->sd].in_t0 + (double)R->last_cursor        -(double)NOW  +(((double)vw)/2.0)   )   );
                 int x2 = (int)ceil(    Q*( (double)devs[R->sd].in_t0 + (double)devs[R->sd].in_len    -(double)NOW  +(((double)vw)/2.0)   )   );
-
                 Rectangle( hdcMem, x1, height/2+height/20, x2, height/2-height/20 ); // LRTB
                 MoveToEx( hdcMem, width/2, height/2-height/10, 0 );
                 LineTo( hdcMem, width/2, height/2+height/10 );
+                /* -- */
 
+                /* -- */
+                for( int i=0; i<NSTATS; i++ ){
+                    
+                    ps1[i*2].x = (devs[R->sd].instats[i].t - devs[R->sd].in_t0 -now + 50000) / 100;
+                    ps1[i*2].y = 20 + devs[R->sd].instats[i].avail / 20;
+                    
+                    ps1[i*2+1].x = ps1[i*2].x;
+                    ps1[i*2+1].y = ps1[i*2].y - devs[R->sd].instats[i].frameCount / 20;
+                    
+                }
+                Polyline( hdcMem, ps1, NSTATS*2);
+                /* -- */
+                
                 GetClientRect( hwnd, &rc );            
-                sprintf( txt, "give %d\nget %d\ninlen %d\ncursor %d\nLag %d\nview width %d samples\nsrc outlen %d\ndst inlen %d",
-                    devs[R->sd].max_in_frameCount, devs[R->dd].max_out_frameCount, devs[R->sd].in_len, R->last_cursor, Lag, vw, devs[R->sd].out_len, devs[R->dd].in_len );
+                sprintf( txt, "give %d / get %d\ninlen %d\ncursor %d\nLag %d\nview width %d samples\nnroutes %d  nresyncs %d",
+                    devs[R->sd].max_in_frameCount, devs[R->dd].max_out_frameCount, devs[R->sd].in_len, R->last_cursor, Lag, vw, nroutes, nresyncs );
                 DrawText( hdcMem, (const char*) &txt, -1, &rc, DT_CENTER );
             
                 BitBlt( hdc, 0, 70, width, height, hdcMem, 0, 0, SRCCOPY ); 
                 
-                }
+                } // ##############################################################################################################
             }
 
         SelectObject( hdcMem, hbmOld );
