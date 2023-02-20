@@ -21,15 +21,12 @@
     
     #define latency_multiplier 2.0
 
-    int srate = SR;			                   // sample rate [samples/second]
-    double stime = 1.0 / SR;		           // sample duration [seconds]
-
     int msize = SR;                            // channel memory size [samples]
     int tsize = SR / 20;                       // tail size [samples]    
     int csize; // = tsize + msize * 2          // channel struct size [samples]
 
     double T0;                                 // program t0 [seconds]
-    #define NOW ((long)(ceil((PaUtil_GetTime()-T0)/stime))) // [samples]
+    #define NOW ((long)(ceil((PaUtil_GetTime()-T0)*SR))) // [samples]
 
     int Lag = 0;		 	                    // max route rec+play latency [samples]
 
@@ -247,7 +244,7 @@
         out_params.suggestedLatency = dev->info->defaultLowOutputLatency * latency_multiplier;
         out_params.channelCount = dev->nouts;
         PaError err = Pa_OpenStream( &(dev->stream),
-            dev->nins ? &in_params : 0, dev->nouts ? &out_params : 0, srate,
+            dev->nins ? &in_params : 0, dev->nouts ? &out_params : 0, SR,
             paFramesPerBufferUnspecified, paClipOff|paDitherOff,
             &device_tick, dev );
         if( err != paNoError ){
@@ -262,7 +259,7 @@
         if( err != paNoError ){
             PRINT( "ERROR 3: %s \n ", Pa_GetErrorText( err ) );
             return FAIL; }
-        while( !dev->in_len && !dev->out_len );
+        while( !dev->in_len && !dev->out_len ); // wait
         PRINT( "ok \n " );
         return OK; }
 
@@ -291,11 +288,94 @@
         return OK; }
 
 
+
+
+	void list() {
+		char s1[4], s2[4];		
+		for( int i=0; i<ndevs; i++ ) {
+			sprintf( s1, "%d", devs[i].nins );
+			sprintf( s2, "%d", devs[i].nouts );
+			printf( "  %s%d    %s %s    \"%s\" \"", i<10 ? " " : "", i,
+				devs[i].nins ? s1 : "-", devs[i].nouts ? s2 : "-",
+				Pa_GetHostApiInfo( devs[i].info->hostApi )->name );
+			for( int j=0; j<strlen(devs[i].info->name); j++ )
+				if( devs[i].info->name[j] > 31 )
+					printf( "%c", devs[i].info->name[j] );
+			printf( "\"\n" ); }}
+
+
+    int guimain( HANDLE handle );
+	int main( int agrc, char* argv ){			
+		printf( "\n\t%s\n\n", title );
+		if( init() ) return FAIL;
+		
+		const PaVersionInfo *vi = Pa_GetVersionInfo();
+		printf( "%s\n\n", vi->versionText );
+		
+		list();
+
+		printf( "\n\t srate %d samples/sec "
+			"\n\t ssize %d bytes "
+			"\n\t asize %d samples "
+			"\n\t tsize %d samples "
+			"\n\t hsize %d samples "
+			"\n\t  "
+			"\n\t syntax: SRCDEV SRCCHAN DSTDEV DSTCHAN [DELAYSAMPLES]"
+			"\n\t examples: "
+			"\n\t\t 0 0 1 0 5000"
+			"\n\t\t 85 0 82 0 "
+			"\n\t\t 85 1 82 1 "
+			"\n\t  "
+			"\n\t resync - re-position streams"
+			"\n\t status - status"
+			"\n\t q      - exit "
+			"\n  "
+			"\n  ",
+			SR, 44, 555, tsize, msize );
+
+		printf( "\t] " );
+		
+		char cmd[1000] = "";
+		int sd, sc, dd, dc, d;
+		
+		CreateThread( 0, 0, & guimain, 0, 0, 0 );
+		
+		while( 1 ){
+		
+			fflush(stdout);
+			gets( cmd );
+			printf( "\t] " );
+
+			if( strcmp( cmd, "q" ) == 0 )
+				return OK;
+
+			else if( strcmp( cmd, "l" ) == 0 )
+				list();
+
+			else if( sscanf( cmd, "%d %d %d %d %d", &sd, &sc, &dd, &dc, &d ) == 5 )
+				route_add( sd, sc, dd, dc );
+				
+			else if( sscanf( cmd, "%d %d %d %d", &sd, &sc, &dd, &dc ) == 4 )
+				route_add( sd, sc, dd, dc );
+
+			else if( strcmp( cmd, "resync" ) == 0 )
+				resync();
+			
+			else if( strcmp( cmd, "status" ) == 0 ){
+				printf( "Latency %d \n\t] ", Lag ); }
+
+		}
+	}
+
+
+
+
+
     // ---------------------------------------------------------------------------------------------------------------
 
 
     const int width = 530;
-    const int height = 400;
+    const int height = 700;
     const int vw = 10000; // viewport width samples
 
     struct pixel {
@@ -330,8 +410,8 @@
         //GetClientRect( hwnd, &rc );        
         //DrawText( hdc, "Loading...", -1, &rc, DT_CENTER );
 
-        const PaVersionInfo *vi;
-        if( init() == FAIL )
+        //const PaVersionInfo *vi;
+        //if( init() == FAIL )
             ;// MSGBOX
         //vi = Pa_GetVersionInfo(); // vi->versionText
 
@@ -458,8 +538,11 @@
     }
 
 
-    int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd ){
+    int guimain( HANDLE handle ){
+    //int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd ){
         // SetProcessDPIAware();
+
+        HINSTANCE hInstance = GetModuleHandle(0);
 
         WNDCLASSEX wc;
         memset( &wc, 0, sizeof(wc) );
