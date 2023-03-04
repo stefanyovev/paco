@@ -378,14 +378,6 @@
     const int height = 700;
     const int vw = 10000; // viewport width samples
 
-    struct pixel {
-      union {
-        struct { unsigned char b, g, r, a; };
-        int val; };
-    }; typedef struct pixel pixel;
-
-    pixel *pixels; // from CreateDIBSection
-
     HBITMAP hbmp;
     HANDLE hTickThread;
     HWND hwnd;
@@ -400,20 +392,11 @@
         ShowWindow( hwnd, SW_SHOW );
 
         HDC hdc = GetDC( hwnd );
-        hdcMem = CreateCompatibleDC( hdc );
-        HBITMAP hbmOld = (HBITMAP) SelectObject( hdcMem, hbmp );
         RECT rc;
         route *R;
         POINT ps1[NSTATS*2], ps2[NSTATS];
         
         char txt[100000];
-        //GetClientRect( hwnd, &rc );        
-        //DrawText( hdc, "Loading...", -1, &rc, DT_CENTER );
-
-        //const PaVersionInfo *vi;
-        //if( init() == FAIL )
-            ;// MSGBOX
-        //vi = Pa_GetVersionInfo(); // vi->versionText
 
         for( int i=0; i<ndevs; i++ ){
             if( devs[i].nins ){
@@ -428,44 +411,25 @@
         for( ; ; ){
             if( nroutes ){ // ######################################################################################################
                 R = routes[nroutes-1];
-                
                 long now = NOW - devs[R->sd].in_t0;
-            
-                memset( pixels, 128, width*height*4 );
-                
+                            
                 /* -- */
                 double Q = (((double)width)/((double)vw));            
                 int x1 = (int)ceil(    Q*( (double)devs[R->sd].in_t0 + (double)R->last_cursor        -(double)NOW  +(((double)vw)/2.0)   )   );
                 int x2 = (int)ceil(    Q*( (double)devs[R->sd].in_t0 + (double)devs[R->sd].in_len    -(double)NOW  +(((double)vw)/2.0)   )   );
-                Rectangle( hdcMem, x1, height/2+height/20, x2, height/2-height/20 ); // LRTB
-                MoveToEx( hdcMem, width/2, height/2-height/10, 0 );
-                LineTo( hdcMem, width/2, height/2+height/10 );
-                /* -- */
-
-                /* -- */
-                for( int i=0; i<NSTATS; i++ ){
-                    
-                    ps1[i*2].x = (devs[R->sd].instats[i].t - devs[R->sd].in_t0 -now + 50000) / 100;
-                    ps1[i*2].y = 20 + devs[R->sd].instats[i].avail / 20;
-                    
-                    ps1[i*2+1].x = ps1[i*2].x;
-                    ps1[i*2+1].y = ps1[i*2].y - devs[R->sd].instats[i].frameCount / 20;
-                    
-                }
-                Polyline( hdcMem, ps1, NSTATS*2);
+                Rectangle( hdc, x1, height/2+height/20, x2, height/2-height/20 ); // LRTB
+                MoveToEx( hdc, width/2, height/2-height/10, 0 );
+                LineTo( hdc, width/2, height/2+height/10 );
                 /* -- */
                 
                 GetClientRect( hwnd, &rc );            
-                sprintf( txt, "give %d / get %d\ninlen %d\ncursor %d\nLag %d\nview width %d samples\nnroutes %d  nresyncs %d",
+                sprintf( txt, "\n\n\n\ngive %d / get %d\ninlen %d\ncursor %d\nLag %d\nview width %d samples\nnroutes %d  nresyncs %d",
                     devs[R->sd].max_in_frameCount, devs[R->dd].max_out_frameCount, devs[R->sd].in_len, R->last_cursor, Lag, vw, nroutes, nresyncs );
-                DrawText( hdcMem, (const char*) &txt, -1, &rc, DT_CENTER );
-            
-                BitBlt( hdc, 0, 70, width, height, hdcMem, 0, 0, SRCCOPY ); 
+                DrawText( hdc, (const char*) &txt, -1, &rc, DT_CENTER );
                 
                 } // ##############################################################################################################
             }
 
-        SelectObject( hdcMem, hbmOld );
         DeleteDC( hdc );
     }
 
@@ -478,22 +442,6 @@
       
         case WM_CREATE: { 
 
-                BITMAPINFO bmi;
-                memset( &bmi, 0, sizeof(bmi) );
-                bmi.bmiHeader.biSize = sizeof(BITMAPINFO);
-                bmi.bmiHeader.biWidth = width;
-                bmi.bmiHeader.biHeight =  -height;         // Order pixels from top to bottom
-                bmi.bmiHeader.biPlanes = 1;
-                bmi.bmiHeader.biBitCount = 32;             // last byte not used, 32 bit for alignment
-                bmi.bmiHeader.biCompression = BI_RGB;
-
-                HDC hdc = GetDC( hwnd );
-
-                hbmp = CreateDIBSection( hdc, &bmi, DIB_RGB_COLORS, (void**)&pixels, 0, 0 );
-                DeleteDC( hdc );
-
-                hTickThread = CreateThread( 0, 0, & Drawing_Thread_Main, 0, 0, 0 );
-                
                 hCombo1 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 10, 420, 8000, hwnd, CMB1, NULL, NULL);
                 hCombo2 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 40, 420, 8000, hwnd, CMB2, NULL, NULL);
                 hBtn = CreateWindowEx( 0, "Button", "Play >", WS_VISIBLE|WS_CHILD|WS_TABSTOP|BS_DEFPUSHBUTTON, 437, 10, 77, 53, hwnd, BTN1, NULL, NULL);
@@ -539,8 +487,6 @@
 
 
     int guimain( HANDLE handle ){
-    //int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd ){
-        // SetProcessDPIAware();
 
         HINSTANCE hInstance = GetModuleHandle(0);
 
@@ -561,7 +507,9 @@
             WS_EX_APPWINDOW, "mainwindow", title,
             WS_MINIMIZEBOX | WS_SYSMENU | WS_POPUP | WS_CAPTION,
             300, 200, width, height, 0, 0, hInstance, 0 );
-        
+
+        hTickThread = CreateThread( 0, 0, & Drawing_Thread_Main, 0, 0, 0 );
+
         MSG msg;
         while( GetMessage( &msg, 0, 0, 0 ) > 0 ){
             TranslateMessage( &msg );
