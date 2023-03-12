@@ -382,7 +382,7 @@
     HBITMAP hbmp;
     HANDLE hTickThread;
     HWND hwnd;
-    HDC hdcMem;
+    HDC hdc, hdcMem;
 
     HWND hCombo1, hCombo2, hBtn;
 
@@ -392,7 +392,6 @@
 
         ShowWindow( hwnd, SW_SHOW );
 
-        HDC hdc = GetDC( hwnd );
         hdcMem = CreateCompatibleDC( hdc );
         HBITMAP hbmOld = (HBITMAP) SelectObject( hdcMem, hbmp );
         RECT rc;
@@ -457,9 +456,7 @@
                 bmi.bmiHeader.biBitCount = 32;             // last byte not used, 32 bit for alignment
                 bmi.bmiHeader.biCompression = BI_RGB;
 
-                HDC hdc = GetDC( hwnd );
                 hbmp = CreateDIBSection( hdc, &bmi, DIB_RGB_COLORS, &pixels, 0, 0 );
-                DeleteDC( hdc );
 
                 hCombo1 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 10, 420, 8000, hwnd, CMB1, NULL, NULL);
                 hCombo2 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 40, 420, 8000, hwnd, CMB2, NULL, NULL);
@@ -504,6 +501,34 @@
       return 0;
     }
 
+/*
+ BOOL Quit = FALSE;
+    MSG msg;
+
+	createWindow();
+	initScene();
+
+	QueryPerformanceFrequency( (_LARGE_INTEGER*) &pcf );
+    QueryPerformanceCounter( (_LARGE_INTEGER*) &t2 );
+
+    while( !Quit ){
+
+		if( PeekMessage( &msg, NULL, 0, 0, PM_REMOVE ) ){
+
+            if( msg.message == WM_QUIT ){
+
+                Quit = TRUE;
+
+            } else {
+
+                TranslateMessage( &msg );
+                DispatchMessage( &msg );
+
+            }
+
+        } else {
+
+*/
 
     int guimain( HANDLE handle ){
 
@@ -526,6 +551,8 @@
             WS_EX_APPWINDOW, "mainwindow", title,
             WS_MINIMIZEBOX | WS_SYSMENU | WS_POPUP | WS_CAPTION,
             300, 200, width, height, 0, 0, hInstance, 0 );
+
+        hdc = GetDC( hwnd );
 
         hTickThread = CreateThread( 0, 0, & Drawing_Thread_Main, 0, 0, 0 );
 
