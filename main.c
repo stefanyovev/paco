@@ -17,7 +17,7 @@
     #define OK 0
     #define PRINT printf
 
-    #define SR 44100
+    #define SR 48000
     
     #define latency_multiplier 2.0
 
@@ -387,37 +387,6 @@
     HWND hCombo1, hCombo2, hBtn;
 
 
-    DWORD WINAPI Drawing_Thread_Main( HANDLE handle ){
-        RECT rc;
-        route *R;
-        char txt[100000];
-        for( ; ; ){
-            if( nroutes ){ // ######################################################################################################
-                R = routes[nroutes-1];
-                long now = NOW - devs[R->sd].in_t0;
-                            
-				memset( pixels, 128, width*height*4 );
-                /* -- */
-                double Q = (((double)width)/((double)vw));            
-                int x1 = (int)ceil(    Q*( (double)devs[R->sd].in_t0 + (double)R->last_cursor        -(double)NOW  +(((double)vw)/2.0)   )   );
-                int x2 = (int)ceil(    Q*( (double)devs[R->sd].in_t0 + (double)devs[R->sd].in_len    -(double)NOW  +(((double)vw)/2.0)   )   );
-                Rectangle( hdcMem, x1, height/2+height/20, x2, height/2-height/20 ); // LRTB
-                MoveToEx( hdcMem, width/2, height/2-height/10, 0 );
-                LineTo( hdcMem, width/2, height/2+height/10 );
-                /* -- */
-                
-                GetClientRect( hwnd, &rc );            
-                sprintf( txt, "\n\n\n\ngive %d / get %d\ninlen %d\ncursor %d\nLag %d\nview width %d samples\nnroutes %d  nresyncs %d",
-                    devs[R->sd].max_in_frameCount, devs[R->dd].max_out_frameCount, devs[R->sd].in_len, R->last_cursor, Lag, vw, nroutes, nresyncs );
-                DrawText( hdcMem, (const char*) &txt, -1, &rc, DT_CENTER );
-                
-				BitBlt( hdc, 0, 70, width, height, hdcMem, 0, 0, SRCCOPY ); 
-                
-                } // ##############################################################################################################
-            }
-    }
-
-
     #define BTN1 (123)
     #define CMB1 (555)
     #define CMB2 (556)
@@ -469,34 +438,6 @@
       return 0;
     }
 
-/*
- BOOL Quit = FALSE;
-    MSG msg;
-
-	createWindow();
-	initScene();
-
-	QueryPerformanceFrequency( (_LARGE_INTEGER*) &pcf );
-    QueryPerformanceCounter( (_LARGE_INTEGER*) &t2 );
-
-    while( !Quit ){
-
-		if( PeekMessage( &msg, NULL, 0, 0, PM_REMOVE ) ){
-
-            if( msg.message == WM_QUIT ){
-
-                Quit = TRUE;
-
-            } else {
-
-                TranslateMessage( &msg );
-                DispatchMessage( &msg );
-
-            }
-
-        } else {
-
-*/
 
     int guimain( HANDLE handle ){
 
@@ -550,11 +491,52 @@
                 SendMessage( hCombo2, CB_ADDSTRING, 0, txt ); }
             SendMessage( hCombo2, CB_SETCURSEL, (WPARAM)0, (LPARAM)0 ); }
 
-        hTickThread = CreateThread( 0, 0, & Drawing_Thread_Main, 0, 0, 0 );
+        //hTickThread = CreateThread( 0, 0, & Drawing_Thread_Main, 0, 0, 0 );
 
-        MSG msg;
-        while( GetMessage( &msg, 0, 0, 0 ) > 0 ){
-            TranslateMessage( &msg );
-            DispatchMessage( &msg ); }
+
+        RECT rc;
+        route *R;
+
+
+
+
+    MSG msg;
+    BOOL Quit = FALSE;
+    while( !Quit ){
+        if( PeekMessage( &msg, NULL, 0, 0, PM_REMOVE ) ){
+            if( msg.message == WM_QUIT ){
+                Quit = TRUE;
+            } else {
+                TranslateMessage( &msg );
+                DispatchMessage( &msg );
+            }
+        } else {
+            if( nroutes ){ // ######################################################################################################
+                R = routes[nroutes-1];
+                long now = NOW - devs[R->sd].in_t0;
+                            
+				memset( pixels, 128, width*height*4 );
+                /* -- */
+                double Q = (((double)width)/((double)vw));            
+                int x1 = (int)ceil(    Q*( (double)devs[R->sd].in_t0 + (double)R->last_cursor        -(double)NOW  +(((double)vw)/2.0)   )   );
+                int x2 = (int)ceil(    Q*( (double)devs[R->sd].in_t0 + (double)devs[R->sd].in_len    -(double)NOW  +(((double)vw)/2.0)   )   );
+                Rectangle( hdcMem, x1, height/2+height/20, x2, height/2-height/20 ); // LRTB
+                MoveToEx( hdcMem, width/2, height/2-height/10, 0 );
+                LineTo( hdcMem, width/2, height/2+height/10 );
+                /* -- */
+                
+                GetClientRect( hwnd, &rc );            
+                sprintf( txt, "\n\n\n\ngive %d / get %d\ninlen %d\ncursor %d\nLag %d\nview width %d samples\nnroutes %d  nresyncs %d",
+                    devs[R->sd].max_in_frameCount, devs[R->dd].max_out_frameCount, devs[R->sd].in_len, R->last_cursor, Lag, vw, nroutes, nresyncs );
+                DrawText( hdcMem, (const char*) &txt, -1, &rc, DT_CENTER );
+                
+				BitBlt( hdc, 0, 70, width, height, hdcMem, 0, 0, SRCCOPY ); 
+                
+                } // ##############################################################################################################
+
+        }
+    }
+
+
 
         return 0; }
