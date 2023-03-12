@@ -17,7 +17,7 @@
     #define OK 0
     #define PRINT printf
 
-    #define SR 48000
+    #define SR 44100
     
     #define latency_multiplier 2.0
 
@@ -388,27 +388,9 @@
 
 
     DWORD WINAPI Drawing_Thread_Main( HANDLE handle ){
-        Sleep( 100 );                                                     // time for main thread to finish
-
-        ShowWindow( hwnd, SW_SHOW );
-
-        hdcMem = CreateCompatibleDC( hdc );
-        HBITMAP hbmOld = (HBITMAP) SelectObject( hdcMem, hbmp );
         RECT rc;
         route *R;
-        
         char txt[100000];
-
-        for( int i=0; i<ndevs; i++ ){
-            if( devs[i].nins ){
-                sprintf( txt, " %3d  / %s /  %s ", i, Pa_GetHostApiInfo( devs[i].info->hostApi )->name, devs[i].info->name );
-                SendMessage( hCombo1, CB_ADDSTRING, 0, txt ); }
-            SendMessage( hCombo1, CB_SETCURSEL, (WPARAM)0, (LPARAM)0 );
-            if( devs[i].nouts ){
-                sprintf( txt, " %3d  / %s /  %s ", i, Pa_GetHostApiInfo( devs[i].info->hostApi )->name, devs[i].info->name );
-                SendMessage( hCombo2, CB_ADDSTRING, 0, txt ); }
-            SendMessage( hCombo2, CB_SETCURSEL, (WPARAM)0, (LPARAM)0 ); }
-
         for( ; ; ){
             if( nroutes ){ // ######################################################################################################
                 R = routes[nroutes-1];
@@ -433,9 +415,6 @@
                 
                 } // ##############################################################################################################
             }
-
-        SelectObject( hdcMem, hbmOld );
-        DeleteDC( hdc );
     }
 
 
@@ -446,17 +425,6 @@
       switch ( msg ){
       
         case WM_CREATE: { 
-
-                BITMAPINFO bmi;
-                memset( &bmi, 0, sizeof(bmi) );
-                bmi.bmiHeader.biSize = sizeof(BITMAPINFO);
-                bmi.bmiHeader.biWidth = width;
-                bmi.bmiHeader.biHeight =  -height;         // Order pixels from top to bottom
-                bmi.bmiHeader.biPlanes = 1;
-                bmi.bmiHeader.biBitCount = 32;             // last byte not used, 32 bit for alignment
-                bmi.bmiHeader.biCompression = BI_RGB;
-
-                hbmp = CreateDIBSection( hdc, &bmi, DIB_RGB_COLORS, &pixels, 0, 0 );
 
                 hCombo1 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 10, 420, 8000, hwnd, CMB1, NULL, NULL);
                 hCombo2 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 40, 420, 8000, hwnd, CMB2, NULL, NULL);
@@ -553,6 +521,34 @@
             300, 200, width, height, 0, 0, hInstance, 0 );
 
         hdc = GetDC( hwnd );
+
+        BITMAPINFO bmi;
+        memset( &bmi, 0, sizeof(bmi) );
+        bmi.bmiHeader.biSize = sizeof(BITMAPINFO);
+        bmi.bmiHeader.biWidth = width;
+        bmi.bmiHeader.biHeight =  -height;         // Order pixels from top to bottom
+        bmi.bmiHeader.biPlanes = 1;
+        bmi.bmiHeader.biBitCount = 32;             // last byte not used, 32 bit for alignment
+        bmi.bmiHeader.biCompression = BI_RGB;
+
+        hbmp = CreateDIBSection( hdc, &bmi, DIB_RGB_COLORS, &pixels, 0, 0 );
+
+        ShowWindow( hwnd, SW_SHOW );
+
+        hdcMem = CreateCompatibleDC( hdc );
+        HBITMAP hbmOld = (HBITMAP) SelectObject( hdcMem, hbmp );
+        
+        char txt[100000];
+
+        for( int i=0; i<ndevs; i++ ){
+            if( devs[i].nins ){
+                sprintf( txt, " %3d  / %s /  %s ", i, Pa_GetHostApiInfo( devs[i].info->hostApi )->name, devs[i].info->name );
+                SendMessage( hCombo1, CB_ADDSTRING, 0, txt ); }
+            SendMessage( hCombo1, CB_SETCURSEL, (WPARAM)0, (LPARAM)0 );
+            if( devs[i].nouts ){
+                sprintf( txt, " %3d  / %s /  %s ", i, Pa_GetHostApiInfo( devs[i].info->hostApi )->name, devs[i].info->name );
+                SendMessage( hCombo2, CB_ADDSTRING, 0, txt ); }
+            SendMessage( hCombo2, CB_SETCURSEL, (WPARAM)0, (LPARAM)0 ); }
 
         hTickThread = CreateThread( 0, 0, & Drawing_Thread_Main, 0, 0, 0 );
 
