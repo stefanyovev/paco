@@ -374,10 +374,11 @@
     // ---------------------------------------------------------------------------------------------------------------
 
 
-    const int width = 530;
+    const int width = 600;
     const int height = 700;
     const int vw = 10000; // viewport width samples
 
+	void ** pixels;
     HBITMAP hbmp;
     HANDLE hTickThread;
     HWND hwnd;
@@ -392,9 +393,10 @@
         ShowWindow( hwnd, SW_SHOW );
 
         HDC hdc = GetDC( hwnd );
+        hdcMem = CreateCompatibleDC( hdc );
+        HBITMAP hbmOld = (HBITMAP) SelectObject( hdcMem, hbmp );
         RECT rc;
         route *R;
-        POINT ps1[NSTATS*2], ps2[NSTATS];
         
         char txt[100000];
 
@@ -413,23 +415,27 @@
                 R = routes[nroutes-1];
                 long now = NOW - devs[R->sd].in_t0;
                             
+				memset( pixels, 128, width*height*4 );
                 /* -- */
                 double Q = (((double)width)/((double)vw));            
                 int x1 = (int)ceil(    Q*( (double)devs[R->sd].in_t0 + (double)R->last_cursor        -(double)NOW  +(((double)vw)/2.0)   )   );
                 int x2 = (int)ceil(    Q*( (double)devs[R->sd].in_t0 + (double)devs[R->sd].in_len    -(double)NOW  +(((double)vw)/2.0)   )   );
-                Rectangle( hdc, x1, height/2+height/20, x2, height/2-height/20 ); // LRTB
-                MoveToEx( hdc, width/2, height/2-height/10, 0 );
-                LineTo( hdc, width/2, height/2+height/10 );
+                Rectangle( hdcMem, x1, height/2+height/20, x2, height/2-height/20 ); // LRTB
+                MoveToEx( hdcMem, width/2, height/2-height/10, 0 );
+                LineTo( hdcMem, width/2, height/2+height/10 );
                 /* -- */
                 
                 GetClientRect( hwnd, &rc );            
                 sprintf( txt, "\n\n\n\ngive %d / get %d\ninlen %d\ncursor %d\nLag %d\nview width %d samples\nnroutes %d  nresyncs %d",
                     devs[R->sd].max_in_frameCount, devs[R->dd].max_out_frameCount, devs[R->sd].in_len, R->last_cursor, Lag, vw, nroutes, nresyncs );
-                DrawText( hdc, (const char*) &txt, -1, &rc, DT_CENTER );
+                DrawText( hdcMem, (const char*) &txt, -1, &rc, DT_CENTER );
+                
+				BitBlt( hdc, 0, 70, width, height, hdcMem, 0, 0, SRCCOPY ); 
                 
                 } // ##############################################################################################################
             }
 
+        SelectObject( hdcMem, hbmOld );
         DeleteDC( hdc );
     }
 
@@ -441,6 +447,19 @@
       switch ( msg ){
       
         case WM_CREATE: { 
+
+                BITMAPINFO bmi;
+                memset( &bmi, 0, sizeof(bmi) );
+                bmi.bmiHeader.biSize = sizeof(BITMAPINFO);
+                bmi.bmiHeader.biWidth = width;
+                bmi.bmiHeader.biHeight =  -height;         // Order pixels from top to bottom
+                bmi.bmiHeader.biPlanes = 1;
+                bmi.bmiHeader.biBitCount = 32;             // last byte not used, 32 bit for alignment
+                bmi.bmiHeader.biCompression = BI_RGB;
+
+                HDC hdc = GetDC( hwnd );
+                hbmp = CreateDIBSection( hdc, &bmi, DIB_RGB_COLORS, &pixels, 0, 0 );
+                DeleteDC( hdc );
 
                 hCombo1 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 10, 420, 8000, hwnd, CMB1, NULL, NULL);
                 hCombo2 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 40, 420, 8000, hwnd, CMB2, NULL, NULL);
