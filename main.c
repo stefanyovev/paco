@@ -123,6 +123,9 @@
         long cursor, now;
         float *sig;
 
+        if( statusFlags )
+            PRINT( "statusFlags: %d", statusFlags );
+
         if( input ){
             if( dev->max_in_frameCount < frameCount )
                 dev->max_in_frameCount = frameCount;
@@ -244,8 +247,8 @@
         out_params.suggestedLatency = dev->info->defaultLowOutputLatency * latency_multiplier;
         out_params.channelCount = dev->nouts;
         PaError err = Pa_OpenStream( &(dev->stream),
-            dev->nins ? &in_params : 0, dev->nouts ? &out_params : 0, SR,
-            paFramesPerBufferUnspecified, paClipOff|paDitherOff,
+            dev->nins ? &in_params : 0, dev->nouts ? &out_params : 0, SR, paFramesPerBufferUnspecified,
+            paClipOff | paDitherOff | paPrimeOutputBuffersUsingStreamCallback, // paNeverDropInput ?
             &device_tick, dev );
         if( err != paNoError ){
             if( err != paUnanticipatedHostError ) {
