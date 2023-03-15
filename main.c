@@ -390,50 +390,50 @@
     #define CMB2 (556)
     
     LRESULT CALLBACK WndProc( HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam ){
-      switch ( msg ){
-      
-        case WM_CREATE: { 
+        switch ( msg ){
 
-                hCombo1 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 10, 420, 8000, hwnd, CMB1, NULL, NULL);
-                hCombo2 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 40, 420, 8000, hwnd, CMB2, NULL, NULL);
-                hBtn = CreateWindowEx( 0, "Button", "Play >", WS_VISIBLE|WS_CHILD|WS_TABSTOP|BS_DEFPUSHBUTTON, 437, 10, 77, 53, hwnd, BTN1, NULL, NULL);
+            case WM_CREATE: { 
 
-            } break;
+                    hCombo1 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 10, 420, 8000, hwnd, CMB1, NULL, NULL);
+                    hCombo2 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 40, 420, 8000, hwnd, CMB2, NULL, NULL);
+                    hBtn = CreateWindowEx( 0, "Button", "Play >", WS_VISIBLE|WS_CHILD|WS_TABSTOP|BS_DEFPUSHBUTTON, 437, 10, 77, 53, hwnd, BTN1, NULL, NULL);
 
-        case WM_COMMAND:
-        
-            if( LOWORD(wParam) == BTN1 ){
+                } break;
+
+            case WM_COMMAND:
+
+                if( LOWORD(wParam) == BTN1 ){
+                    
+                    int sd, dd;
+                    char*  txt[300];                                        
+
+                    GetDlgItemText( hwnd, CMB1, txt, 255 );
+                    sscanf( txt, "  %3d", &sd );
+                    
+                    GetDlgItemText( hwnd, CMB2, txt, 255 );
+                    sscanf( txt, "  %3d", &dd );
+
+                    int res =
+                    route_add( sd, 0, dd, 0 );
+                    route_add( sd, 1, dd, 1 );
+                    
+                    if( res == FAIL )
+                        MessageBox( hwnd, "FAIL", "", MB_OK ); }
+
+                break;
                 
-                int sd, dd;
-                char*  txt[300];                                        
-                                                        
-                GetDlgItemText( hwnd, CMB1, txt, 255 );
-                sscanf( txt, "  %3d", &sd );
-                
-                GetDlgItemText( hwnd, CMB2, txt, 255 );
-                sscanf( txt, "  %3d", &dd );
-
-                int res =
-                route_add( sd, 0, dd, 0 );
-                route_add( sd, 1, dd, 1 );
-                
-                if( res == FAIL )
-                    MessageBox( hwnd, "FAIL", "", MB_OK ); }
-
-            break;
-            
-        case WM_CLOSE: {
-                DestroyWindow( hwnd ); }
-          break;
-          
-        case WM_DESTROY: {
-                PostQuitMessage( 0 ); }
-          break;
-          
-        default:
-            return DefWindowProc( hwnd, msg, wParam, lParam );
-      }
-      return 0;
+            case WM_CLOSE: {
+                    DestroyWindow( hwnd ); }
+              break;
+              
+            case WM_DESTROY: {
+                    PostQuitMessage( 0 ); }
+              break;
+              
+            default:
+                return DefWindowProc( hwnd, msg, wParam, lParam );
+        }
+        return 0;
     }
 
 
@@ -478,16 +478,14 @@
         hdcMem = CreateCompatibleDC( hdc );
         HBITMAP hbmOld = (HBITMAP) SelectObject( hdcMem, hbmp );
         
-        char txt[100000];
+        char str[1000], txt[100000];
 
         for( int i=0; i<ndevs; i++ ){
-            if( devs[i].nins ){
-                sprintf( txt, " %3d  / %s /  %s ", i, Pa_GetHostApiInfo( devs[i].info->hostApi )->name, devs[i].info->name );
-                SendMessage( hCombo1, CB_ADDSTRING, 0, txt ); }
+            strcpy( str, Pa_GetHostApiInfo( devs[i].info->hostApi )->name );
+            sprintf( txt, " %3d  /  %s  /  %s ", i, strstr( str, "Windows" ) ? str+8 : str, devs[i].info->name );
+            if( devs[i].nins ) SendMessage( hCombo1, CB_ADDSTRING, 0, txt );
+            if( devs[i].nouts ) SendMessage( hCombo2, CB_ADDSTRING, 0, txt );
             SendMessage( hCombo1, CB_SETCURSEL, (WPARAM)0, (LPARAM)0 );
-            if( devs[i].nouts ){
-                sprintf( txt, " %3d  / %s /  %s ", i, Pa_GetHostApiInfo( devs[i].info->hostApi )->name, devs[i].info->name );
-                SendMessage( hCombo2, CB_ADDSTRING, 0, txt ); }
             SendMessage( hCombo2, CB_SETCURSEL, (WPARAM)0, (LPARAM)0 ); }
 
         RECT rc;
