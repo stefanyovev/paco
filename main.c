@@ -238,13 +238,13 @@
         in_params.device = dev->id;
         in_params.sampleFormat = paFloat32|paNonInterleaved;
         in_params.hostApiSpecificStreamInfo = 0;
-        in_params.suggestedLatency = dev->info->defaultLowInputLatency;
+        in_params.suggestedLatency = dev->info->defaultLowInputLatency; // "buffer size" [seconds]
         in_params.channelCount = dev->nins;
         static PaStreamParameters out_params;
         out_params.device = dev->id;
         out_params.sampleFormat = paFloat32|paNonInterleaved;
         out_params.hostApiSpecificStreamInfo = 0;
-        out_params.suggestedLatency = dev->info->defaultLowOutputLatency;
+        out_params.suggestedLatency = dev->info->defaultLowOutputLatency; // "buffer size" [seconds]
         out_params.channelCount = dev->nouts;
         PaError err = Pa_OpenStream( &(dev->stream),
             dev->nins ? &in_params : 0, dev->nouts ? &out_params : 0, SR, paFramesPerBufferUnspecified,
@@ -295,17 +295,18 @@
 
 
     void list() {                                                  // LIST
-        char s1[4], s2[4];        
+        char s1[4], s2[4], s3[99];
         for( int i=0; i<ndevs; i++ ) {
             sprintf( s1, "%d", devs[i].nins );
             sprintf( s2, "%d", devs[i].nouts );
-            printf( "  %s%d    %s %s    \"%s\" \"", i<10 ? " " : "", i,
+            sprintf( s3, "%s", Pa_GetHostApiInfo( devs[i].info->hostApi )->name );
+            printf( "  %s%d    %s %s    %s / ", i<10 ? " " : "", i,
                 devs[i].nins ? s1 : "-", devs[i].nouts ? s2 : "-",
-                Pa_GetHostApiInfo( devs[i].info->hostApi )->name );
+                strstr( s3, "Windows" ) ? s3+8 : s3 );
             for( int j=0; j<strlen(devs[i].info->name); j++ )
                 if( devs[i].info->name[j] > 31 )
                     printf( "%c", devs[i].info->name[j] );
-            printf( "\"\n" ); }}
+            printf( "\n" ); }}
 
 
     int main2( HANDLE handle );                                    // MAIN
@@ -324,8 +325,8 @@
 
         PRINT(
             "\n\t srate %d samples/sec "
-            "\n\t tsize %d samples "
             "\n\t msize %d samples "
+            "\n\t tsize %d samples "
             "\n\t  "
             "\n\t syntax: SRCDEV SRCCHAN DSTDEV DSTCHAN [DELAYSAMPLES]"
             "\n\t examples: "
@@ -339,7 +340,7 @@
             "\n\t q      - exit "
             "\n  "
             "\n  ",
-            SR, tsize, msize );
+            SR, msize, tsize );
 
         CreateThread( 0, 0, &main2, 0, 0, 0 );
 
