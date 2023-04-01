@@ -7,7 +7,7 @@
     #include <stdlib.h>
     #include <string.h>
     #include <math.h>
-    #include <windows.h>    
+    #include <windows.h>
     #include <portaudio.h>
     double PaUtil_GetTime( void );
     void PaUtil_InitializeClock( void );
@@ -18,7 +18,7 @@
     #define PRINT printf
 
     #define SR 48000
-    
+
     #define latency_multiplier 2.0
 
     int msize = SR;                            // channel memory size [samples]
@@ -28,19 +28,19 @@
     double T0;                                 // program t0 [seconds]
     #define NOW ((long)(ceil((PaUtil_GetTime()-T0)*SR))) // [samples]
 
-    int Lag = 0;		 	                    // max route rec+play latency [samples]
+    int Lag = 0;                               // max route rec+play latency [samples]
 
     float k[1] = {1.0};                        // default fir
 
     #define NSTATS 100
 
 
-    struct stat {                                                                            // STAT
+    struct stat {                                                  // STAT
         long t, avail, frameCount; };
     typedef struct stat stat;
 
 
-    struct route {                                                                           // ROUTE
+    struct route {                                                 // ROUTE
         int sd, sc, dd, dc, delay;
         long last_cursor;
         int ksize;
@@ -52,7 +52,7 @@
     int nroutes = 0;
 
 
-    struct device {                                                                          // DEVICE
+    struct device {                                                // DEVICE
         int id;
         PaStream *stream;
         const PaDeviceInfo *info;
@@ -69,7 +69,7 @@
     int ndevs = 0;
 
 
-    int init() {                                                                                // INIT
+    int init() {                                                   // INIT
         if( Pa_Initialize() ){
             PRINT( "ERROR: Pa_Initialize rubbish \n" );
             return FAIL; }
@@ -102,21 +102,21 @@
         return OK; }
 
 
-    int nresyncs=0;
-    void resync(){ nresyncs++;                                                                  // RESYNC
+    int nresyncs=0;                                                // RESYNC
+    void resync(){ nresyncs++;
         for( int i=0; i<ndevs; i++ )
             for( int j=0; j<devs[i].nouts; j++ )
                 devs[i].outs[j].last_cursor = 0; }
 
 
-    PaStreamCallbackResult device_tick(                                                         // DEVICE TICK
+    PaStreamCallbackResult device_tick(                            // DEVICE TICK
         float **input,
         float **output,
         unsigned long frameCount,
         const PaStreamCallbackTimeInfo *timeInfo,
         PaStreamCallbackFlags statusFlags,
         void *self ){
-        
+
         device *dev = (device*) self;		
         route *R;
         int sd, sc, dd, dc, lag, missing, sig_resync, ofs, n, kn, i, x;
@@ -150,23 +150,23 @@
                 dev->cinstat = 0; }
 
         if( output ){
-        
+
             if( dev->max_out_frameCount < frameCount )
                 dev->max_out_frameCount = frameCount;
-                
+
             sig_resync = 0;
-            
+
             now = NOW;
             // ################################################################################################ // ROUTE TICK
             for( dc=0; dc < dev->nouts; dc++ ){
                 R = dev->outs +dc;
-                
+
                 dd = dev->id;
                 sd = R->sd;
                 sc = R->sc;
-                
+
                 memset( output[dc], 0, frameCount * sizeof(float) );
-                
+
                 if( !sd || !devs[sd].in_len )
                     continue;
 
@@ -180,7 +180,7 @@
                         R->last_cursor = 0;
                         continue; }
                     PRINT( "[%d.%d -> %d.%d] INIT; Lag %d; delay %d; cursor %d \n ", sd, sc, dd, dc, Lag, R->delay, cursor ); }
-                
+
                 cursor = R->last_cursor;
 
                 missing = 0;
@@ -190,7 +190,7 @@
                     sig_resync = 1; }
 
                 cursor -= R->delay+missing;
-                
+
                 if( cursor < 0 )
                     continue;
 
@@ -207,7 +207,7 @@
                         output[dc][n] += R->k[kn]*sig[n-kn]; }
 
                 R->last_cursor += frameCount; }
-                            
+
             // ############################################################################################### // /ROUTE MAIN
 
             now = NOW; // + the time to tick end in samples
@@ -225,13 +225,13 @@
             // else
             if( dev->out_t0 == 0 )
                 dev->out_t0 = NOW;
-                
+
             dev->out_len += frameCount; }
-                
+
         return paContinue; } // commit output
 
-            
-    int use_device( device *dev ){                                                                      // +DEVICE
+
+    int use_device( device *dev ){                                 // +DEVICE
         if( dev->stream ) return OK;        
         PRINT( "%d starting ... \n ", dev->id );
         static PaStreamParameters in_params;
@@ -267,7 +267,7 @@
         return OK; }
 
 
-    int route_add( int sd, int sc, int dd, int dc ) {                                                  // +ROUTE
+    int route_add( int sd, int sc, int dd, int dc ) {              // +ROUTE
         route *R = (devs+dd)->outs+dc;
         R->sd = sd; R->sc = sc;
         R->dd = dd; R->dc = dc;
@@ -293,82 +293,82 @@
 
 
 
-	void list() {
-		char s1[4], s2[4];		
-		for( int i=0; i<ndevs; i++ ) {
-			sprintf( s1, "%d", devs[i].nins );
-			sprintf( s2, "%d", devs[i].nouts );
-			printf( "  %s%d    %s %s    \"%s\" \"", i<10 ? " " : "", i,
-				devs[i].nins ? s1 : "-", devs[i].nouts ? s2 : "-",
-				Pa_GetHostApiInfo( devs[i].info->hostApi )->name );
-			for( int j=0; j<strlen(devs[i].info->name); j++ )
-				if( devs[i].info->name[j] > 31 )
-					printf( "%c", devs[i].info->name[j] );
-			printf( "\"\n" ); }}
+    void list() {                                                  // LIST
+        char s1[4], s2[4];        
+        for( int i=0; i<ndevs; i++ ) {
+            sprintf( s1, "%d", devs[i].nins );
+            sprintf( s2, "%d", devs[i].nouts );
+            printf( "  %s%d    %s %s    \"%s\" \"", i<10 ? " " : "", i,
+                devs[i].nins ? s1 : "-", devs[i].nouts ? s2 : "-",
+                Pa_GetHostApiInfo( devs[i].info->hostApi )->name );
+            for( int j=0; j<strlen(devs[i].info->name); j++ )
+                if( devs[i].info->name[j] > 31 )
+                    printf( "%c", devs[i].info->name[j] );
+            printf( "\"\n" ); }}
 
 
-    int guimain( HANDLE handle );
-	int main( int agrc, char* argv ){			
-		printf( "\n\t%s\n\n", title );
-		if( init() ) return FAIL;
-		
-		const PaVersionInfo *vi = Pa_GetVersionInfo();
-		printf( "%s\n\n", vi->versionText );
-		
-		list();
+    int main2( HANDLE handle );                                    // MAIN
+    int main( int agrc, char* argv ){
+        printf( "\n\t%s\n\n", title );
+        if( init() ) return FAIL;
 
-		printf( "\n\t srate %d samples/sec "
-			"\n\t ssize %d bytes "
-			"\n\t asize %d samples "
-			"\n\t tsize %d samples "
-			"\n\t hsize %d samples "
-			"\n\t  "
-			"\n\t syntax: SRCDEV SRCCHAN DSTDEV DSTCHAN [DELAYSAMPLES]"
-			"\n\t examples: "
-			"\n\t\t 0 0 1 0 5000"
-			"\n\t\t 85 0 82 0 "
-			"\n\t\t 85 1 82 1 "
-			"\n\t  "
-			"\n\t resync - re-position streams"
-			"\n\t status - status"
-			"\n\t q      - exit "
-			"\n  "
-			"\n  ",
-			SR, 44, 555, tsize, msize );
+        const PaVersionInfo *vi = Pa_GetVersionInfo();
+        printf( "%s\n\n", vi->versionText );
 
-		printf( "\t] " );
-		
-		char cmd[1000] = "";
-		int sd, sc, dd, dc, d;
-		
-		CreateThread( 0, 0, & guimain, 0, 0, 0 );
-		
-		while( 1 ){
-		
-			fflush(stdout);
-			gets( cmd );
-			printf( "\t] " );
+        list();
 
-			if( strcmp( cmd, "q" ) == 0 )
-				return OK;
+        printf( "\n\t srate %d samples/sec "
+            "\n\t ssize %d bytes "
+            "\n\t asize %d samples "
+            "\n\t tsize %d samples "
+            "\n\t hsize %d samples "
+            "\n\t  "
+            "\n\t syntax: SRCDEV SRCCHAN DSTDEV DSTCHAN [DELAYSAMPLES]"
+            "\n\t examples: "
+            "\n\t\t 0 0 1 0 5000"
+            "\n\t\t 85 0 82 0 "
+            "\n\t\t 85 1 82 1 "
+            "\n\t  "
+            "\n\t resync - re-position streams"
+            "\n\t status - status"
+            "\n\t q      - exit "
+            "\n  "
+            "\n  ",
+            SR, 44, 555, tsize, msize );
 
-			else if( strcmp( cmd, "l" ) == 0 )
-				list();
+        printf( "\t] " );
 
-			else if( sscanf( cmd, "%d %d %d %d %d", &sd, &sc, &dd, &dc, &d ) == 5 )
-				route_add( sd, sc, dd, dc );
-				
-			else if( sscanf( cmd, "%d %d %d %d", &sd, &sc, &dd, &dc ) == 4 )
-				route_add( sd, sc, dd, dc );
+        char cmd[1000] = "";
+        int sd, sc, dd, dc, d;
 
-			else if( strcmp( cmd, "resync" ) == 0 )
-				resync();
-			
-			else if( strcmp( cmd, "status" ) == 0 ){
-				printf( "Latency %d \n\t] ", Lag ); }
+        CreateThread( 0, 0, & main2, 0, 0, 0 );
 
-		}
-	}
+        while( 1 ){
+
+            fflush(stdout);
+            gets( cmd );
+            printf( "\t] " );
+
+            if( strcmp( cmd, "q" ) == 0 )
+                return OK;
+
+            else if( strcmp( cmd, "l" ) == 0 )
+                list();
+
+            else if( sscanf( cmd, "%d %d %d %d %d", &sd, &sc, &dd, &dc, &d ) == 5 )
+                route_add( sd, sc, dd, dc );
+
+            else if( sscanf( cmd, "%d %d %d %d", &sd, &sc, &dd, &dc ) == 4 )
+                route_add( sd, sc, dd, dc );
+
+            else if( strcmp( cmd, "resync" ) == 0 )
+                resync();
+
+            else if( strcmp( cmd, "status" ) == 0 ){
+                printf( "Latency %d \n\t] ", Lag ); }
+
+        }
+    }
 
 
     // ---------------------------------------------------------------------------------------------------------------
@@ -381,18 +381,18 @@
     HWND hwnd;
     HDC hdc, hdcMem;
     HBITMAP hbmp;
-	void ** pixels;
+    void ** pixels;
 
     HWND hCombo1, hCombo2, hBtn;
 
     #define BTN1 (123)
     #define CMB1 (555)
     #define CMB2 (556)
-    
+
     LRESULT CALLBACK WndProc( HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam ){
         switch ( msg ){
 
-            case WM_CREATE: { 
+            case WM_CREATE: {
 
                     hCombo1 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 10, 490, 8000, hwnd, CMB1, NULL, NULL);
                     hCombo2 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 40, 490, 8000, hwnd, CMB2, NULL, NULL);
@@ -403,33 +403,33 @@
             case WM_COMMAND:
 
                 if( LOWORD(wParam) == BTN1 ){
-                    
+
                     int sd, dd;
-                    char*  txt[300];                                        
+                    char*  txt[300];
 
                     GetDlgItemText( hwnd, CMB1, txt, 255 );
                     sscanf( txt, "  %3d", &sd );
-                    
+
                     GetDlgItemText( hwnd, CMB2, txt, 255 );
                     sscanf( txt, "  %3d", &dd );
 
                     int res =
                     route_add( sd, 0, dd, 0 );
                     route_add( sd, 1, dd, 1 );
-                    
+
                     if( res == FAIL )
                         MessageBox( hwnd, "FAIL", "", MB_OK ); }
 
                 break;
-                
+
             case WM_CLOSE: {
                     DestroyWindow( hwnd ); }
               break;
-              
+
             case WM_DESTROY: {
                     PostQuitMessage( 0 ); }
               break;
-              
+
             default:
                 return DefWindowProc( hwnd, msg, wParam, lParam );
         }
@@ -437,8 +437,7 @@
     }
 
 
-    int guimain( HANDLE handle ){
-
+    int main2( HANDLE handle ){                                    // MAIN2
         HINSTANCE hInstance = GetModuleHandle(0);
 
         WNDCLASSEX wc;
@@ -477,7 +476,7 @@
 
         hdcMem = CreateCompatibleDC( hdc );
         HBITMAP hbmOld = (HBITMAP) SelectObject( hdcMem, hbmp );
-        
+
         char str[1000], txt[100000];
 
         for( int i=0; i<ndevs; i++ ){
@@ -492,6 +491,7 @@
         route *R;
         MSG msg;
         BOOL Quit = FALSE;
+
         while( !Quit ){
             if( PeekMessage( &msg, NULL, 0, 0, PM_REMOVE ) ){
                 if( msg.message == WM_QUIT ){
@@ -504,24 +504,24 @@
                 if( nroutes ){ // ######################################################################################################
                     R = routes[nroutes-1];
                     long now = NOW - devs[R->sd].in_t0;
-                                
+
                     memset( pixels, 128, width*height*4 );
                     /* -- */
-                    double Q = (((double)width)/((double)vw));            
+                    double Q = (((double)width)/((double)vw));
                     int x1 = (int)ceil(    Q*( (double)devs[R->sd].in_t0 + (double)R->last_cursor        -(double)NOW  +(((double)vw)/2.0)   )   );
                     int x2 = (int)ceil(    Q*( (double)devs[R->sd].in_t0 + (double)devs[R->sd].in_len    -(double)NOW  +(((double)vw)/2.0)   )   );
                     Rectangle( hdcMem, x1, height/2+height/20, x2, height/2-height/20 ); // LRTB
                     MoveToEx( hdcMem, width/2, height/2-height/10, 0 );
                     LineTo( hdcMem, width/2, height/2+height/10 );
                     /* -- */
-                    
-                    GetClientRect( hwnd, &rc );            
+
+                    GetClientRect( hwnd, &rc );
                     sprintf( txt, "\n\n\n\ngive %d / get %d\ninlen %d\ncursor %d\nLag %d\nview width %d samples\nnroutes %d  nresyncs %d",
                         devs[R->sd].max_in_frameCount, devs[R->dd].max_out_frameCount, devs[R->sd].in_len, R->last_cursor, Lag, vw, nroutes, nresyncs );
                     DrawText( hdcMem, (const char*) &txt, -1, &rc, DT_CENTER );
-                    
-                    BitBlt( hdc, 0, 70, width, height, hdcMem, 0, 0, SRCCOPY ); 
-                    
+
+                    BitBlt( hdc, 0, 70, width, height, hdcMem, 0, 0, SRCCOPY );
+
                 } // ##############################################################################################################
             }
         }
