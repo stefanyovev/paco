@@ -7,38 +7,26 @@
     #include <stdlib.h>
     #include <string.h>
     #include <math.h>
+
     #include <windows.h>
+
     #include <portaudio.h>
     double PaUtil_GetTime( void );
     void PaUtil_InitializeClock( void );
 
 
-    #define FAIL 1
     #define OK 0
+    #define FAIL 1    
     #define PRINT printf
-
     #define SR 48000
 
-    #define latency_multiplier 2.0
-
-    int msize = SR;                            // channel memory size [samples]
-    int tsize = SR / 20;                       // tail size [samples]    
-    int csize; // = tsize + msize * 2          // channel struct size [samples]
-
-    double T0;                                 // program t0 [seconds]
-    #define NOW ((long)(ceil((PaUtil_GetTime()-T0)*SR))) // [samples]
-
-    int Lag = 0;                               // max route rec+play latency [samples]
-
-    float k[1] = {1.0};                        // default fir
-
-    #define NSTATS 100
+    double T0;                                                     // [seconds]
+    #define NOW ((long)(ceil((PaUtil_GetTime()-T0)*SR)))           // [samples]
 
 
     struct stat {                                                  // STAT
         long t, avail, frameCount; };
     typedef struct stat stat;
-
 
     struct route {                                                 // ROUTE
         int sd, sc, dd, dc, delay;
@@ -48,9 +36,6 @@
         stat *stats;
         int cstat; };
     typedef struct route route;
-    route **routes = 0;
-    int nroutes = 0;
-
 
     struct device {                                                // DEVICE
         int id;
@@ -65,8 +50,24 @@
         stat *instats;
         int cinstat; };
     typedef struct device device;
+
+
     device *devs = 0;
+    route **routes = 0;
+
+    int msize = SR;                            // channel memory size [samples]
+    int tsize = SR / 20;                       // tail size [samples]    
+    int csize; // = tsize + msize * 2          // channel struct size [samples]
+
     int ndevs = 0;
+    int nroutes = 0;
+    int nresyncs = 0;
+    
+    int Lag = 0;                               // max route rec+play latency [samples]
+    
+    float k[1] = {1.0};                        // default fir
+
+    #define NSTATS 100
 
 
     int init() {                                                   // INIT
@@ -102,8 +103,7 @@
         return OK; }
 
 
-    int nresyncs=0;                                                // RESYNC
-    void resync(){ nresyncs++;
+    void resync(){ nresyncs++;                                     // RESYNC
         for( int i=0; i<ndevs; i++ )
             for( int j=0; j<devs[i].nouts; j++ )
                 devs[i].outs[j].last_cursor = 0; }
@@ -238,13 +238,13 @@
         in_params.device = dev->id;
         in_params.sampleFormat = paFloat32|paNonInterleaved;
         in_params.hostApiSpecificStreamInfo = 0;
-        in_params.suggestedLatency = dev->info->defaultLowInputLatency * latency_multiplier;
+        in_params.suggestedLatency = dev->info->defaultLowInputLatency;
         in_params.channelCount = dev->nins;
         static PaStreamParameters out_params;
         out_params.device = dev->id;
         out_params.sampleFormat = paFloat32|paNonInterleaved;
         out_params.hostApiSpecificStreamInfo = 0;
-        out_params.suggestedLatency = dev->info->defaultLowOutputLatency * latency_multiplier;
+        out_params.suggestedLatency = dev->info->defaultLowOutputLatency;
         out_params.channelCount = dev->nouts;
         PaError err = Pa_OpenStream( &(dev->stream),
             dev->nins ? &in_params : 0, dev->nouts ? &out_params : 0, SR, paFramesPerBufferUnspecified,
@@ -291,6 +291,7 @@
         return OK; }
 
 
+    // ------------------------------------------------------------------------------------------------------------ //
 
 
     void list() {                                                  // LIST
@@ -309,19 +310,22 @@
 
     int main2( HANDLE handle );                                    // MAIN
     int main( int agrc, char* argv ){
-        printf( "\n\t%s\n\n", title );
-        if( init() ) return FAIL;
+
+        PRINT( "\n\t%s\n\n", title );
+
+        if( init() == FAIL )
+            return FAIL;
 
         const PaVersionInfo *vi = Pa_GetVersionInfo();
-        printf( "%s\n\n", vi->versionText );
+
+        PRINT( "%s\n\n", vi->versionText );
 
         list();
 
-        printf( "\n\t srate %d samples/sec "
-            "\n\t ssize %d bytes "
-            "\n\t asize %d samples "
+        PRINT(
+            "\n\t srate %d samples/sec "
             "\n\t tsize %d samples "
-            "\n\t hsize %d samples "
+            "\n\t msize %d samples "
             "\n\t  "
             "\n\t syntax: SRCDEV SRCCHAN DSTDEV DSTCHAN [DELAYSAMPLES]"
             "\n\t examples: "
@@ -329,25 +333,24 @@
             "\n\t\t 85 0 82 0 "
             "\n\t\t 85 1 82 1 "
             "\n\t  "
-            "\n\t resync - re-position streams"
+            "\n\t list   - list devices"
             "\n\t status - status"
+            "\n\t resync - re-position streams"
             "\n\t q      - exit "
             "\n  "
             "\n  ",
-            SR, 44, 555, tsize, msize );
+            SR, tsize, msize );
 
-        printf( "\t] " );
+        CreateThread( 0, 0, &main2, 0, 0, 0 );
 
         char cmd[1000] = "";
         int sd, sc, dd, dc, d;
 
-        CreateThread( 0, 0, & main2, 0, 0, 0 );
-
         while( 1 ){
 
-            fflush(stdout);
+            fflush( stdout );
+            PRINT( "\t] " );
             gets( cmd );
-            printf( "\t] " );
 
             if( strcmp( cmd, "q" ) == 0 )
                 return OK;
@@ -365,13 +368,13 @@
                 resync();
 
             else if( strcmp( cmd, "status" ) == 0 ){
-                printf( "Latency %d \n\t] ", Lag ); }
+                PRINT( "Latency %d \n", Lag ); }
 
         }
     }
 
 
-    // ---------------------------------------------------------------------------------------------------------------
+    // ------------------------------------------------------------------------------------------------------------ //
 
 
     const int width = 600;
