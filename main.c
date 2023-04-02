@@ -11,17 +11,17 @@
     #include <windows.h>
 
     #include <portaudio.h>
-    double PaUtil_GetTime( void );
     void PaUtil_InitializeClock( void );
+    double PaUtil_GetTime( void );
 
 
     #define OK 0
     #define FAIL 1    
     #define PRINT printf
-    #define SR 48000
 
-    double T0;                                                     // [seconds]
-    #define NOW ((long)(ceil((PaUtil_GetTime()-T0)*SR)))           // [samples]
+    double T0; // = PaUtil_GetTime @ init
+    #define SAMPLERATE 48000 // [samples/second]
+    #define NOW ((long)(ceil((PaUtil_GetTime()-T0)*SAMPLERATE))) // [samples]
 
 
     struct stat {                                                  // STAT
@@ -55,8 +55,8 @@
     device *devs = 0;
     route **routes = 0;
 
-    int msize = SR;                            // channel memory size [samples]
-    int tsize = SR / 20;                       // tail size [samples]    
+    int msize = SAMPLERATE;                            // channel memory size [samples]
+    int tsize = SAMPLERATE / 20;                       // tail size [samples]    
     int csize; // = tsize + msize * 2          // channel struct size [samples]
 
     int ndevs = 0;
@@ -247,7 +247,7 @@
         out_params.suggestedLatency = dev->info->defaultLowOutputLatency; // "buffer size" [seconds]
         out_params.channelCount = dev->nouts;
         PaError err = Pa_OpenStream( &(dev->stream),
-            dev->nins ? &in_params : 0, dev->nouts ? &out_params : 0, SR, paFramesPerBufferUnspecified,
+            dev->nins ? &in_params : 0, dev->nouts ? &out_params : 0, SAMPLERATE, paFramesPerBufferUnspecified,
             paClipOff | paDitherOff | paPrimeOutputBuffersUsingStreamCallback, // paNeverDropInput ?
             &device_tick, dev );
         if( err != paNoError ){
@@ -277,7 +277,7 @@
         if( !devs[sd].in_len || !devs[dd].out_len )
             return FAIL;
         while( R->last_cursor == 0 ); // wait
-        if( nroutes == 0 ){
+        if( !routes ){
             routes = (route**) malloc( sizeof(void*) );
             routes[0] = R;
             nroutes = 1; }
@@ -340,7 +340,7 @@
             "\n\t q      - exit "
             "\n  "
             "\n  ",
-            SR, msize, tsize );
+            SAMPLERATE, msize, tsize );
 
         CreateThread( 0, 0, &main2, 0, 0, 0 );
 
@@ -369,10 +369,7 @@
                 resync();
 
             else if( strcmp( cmd, "status" ) == 0 ){
-                PRINT( "Latency %d \n", Lag ); }
-
-        }
-    }
+                PRINT( "Latency %d \n", Lag ); }}}
 
 
     // ------------------------------------------------------------------------------------------------------------ //
@@ -382,63 +379,45 @@
     const int height = 700;
     const int vw = 10000; // viewport width samples
 
-    HWND hwnd;
+    HWND hwnd, hCombo1, hCombo2, hBtn;
     HDC hdc, hdcMem;
     HBITMAP hbmp;
     void ** pixels;
+    RECT rc;
+    MSG msg;
+    BOOL done = FALSE;
 
-    HWND hCombo1, hCombo2, hBtn;
 
-    #define BTN1 (123)
     #define CMB1 (555)
     #define CMB2 (556)
+    #define BTN1 (123)
+
 
     LRESULT CALLBACK WndProc( HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam ){
-        switch ( msg ){
+        if( msg == WM_COMMAND ){
+            if( LOWORD(wParam) == BTN1 ){
 
-            case WM_CREATE: {
+                int sd, dd;
+                char*  txt[300];
 
-                    hCombo1 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 10, 490, 8000, hwnd, CMB1, NULL, NULL);
-                    hCombo2 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 40, 490, 8000, hwnd, CMB2, NULL, NULL);
-                    hBtn = CreateWindowEx( 0, "Button", "Play >", WS_VISIBLE|WS_CHILD|WS_TABSTOP|BS_DEFPUSHBUTTON, 507, 10, 77, 53, hwnd, BTN1, NULL, NULL);
+                GetDlgItemText( hwnd, CMB1, txt, 255 );
+                sscanf( txt, "  %3d", &sd );
 
-                } break;
+                GetDlgItemText( hwnd, CMB2, txt, 255 );
+                sscanf( txt, "  %3d", &dd );
 
-            case WM_COMMAND:
+                int res =
+                route_add( sd, 0, dd, 0 );
+                route_add( sd, 1, dd, 1 );
 
-                if( LOWORD(wParam) == BTN1 ){
+                if( res == FAIL )
+                    MessageBox( hwnd, "FAIL", "", MB_OK ); }}
 
-                    int sd, dd;
-                    char*  txt[300];
-
-                    GetDlgItemText( hwnd, CMB1, txt, 255 );
-                    sscanf( txt, "  %3d", &sd );
-
-                    GetDlgItemText( hwnd, CMB2, txt, 255 );
-                    sscanf( txt, "  %3d", &dd );
-
-                    int res =
-                    route_add( sd, 0, dd, 0 );
-                    route_add( sd, 1, dd, 1 );
-
-                    if( res == FAIL )
-                        MessageBox( hwnd, "FAIL", "", MB_OK ); }
-
-                break;
-
-            case WM_CLOSE: {
-                    DestroyWindow( hwnd ); }
-              break;
-
-            case WM_DESTROY: {
-                    PostQuitMessage( 0 ); }
-              break;
-
-            default:
-                return DefWindowProc( hwnd, msg, wParam, lParam );
-        }
-        return 0;
-    }
+        else if( msg == WM_CLOSE )
+            DestroyWindow( hwnd );
+        else if( msg == WM_DESTROY )
+            PostQuitMessage( 0 );
+        return DefWindowProc( hwnd, msg, wParam, lParam ); }
 
 
     int main2( HANDLE handle ){                                    // MAIN2
@@ -446,7 +425,7 @@
 
         WNDCLASSEX wc;
         memset( &wc, 0, sizeof(wc) );
-        wc.cbSize = sizeof( WNDCLASSEX );
+        wc.cbSize = sizeof(wc);
         wc.hInstance = hInstance;
         wc.lpfnWndProc = WndProc;
         wc.lpszClassName = "mainwindow";
@@ -457,31 +436,29 @@
             MessageBox( 0, "Failed to register window class.", "Error", MB_OK );
             return 0; }
 
-        hwnd = CreateWindowEx(
-            WS_EX_APPWINDOW, "mainwindow", title,
-            WS_MINIMIZEBOX | WS_SYSMENU | WS_POPUP | WS_CAPTION,
-            300, 200, width, height, 0, 0, hInstance, 0 );
-
-        hdc = GetDC( hwnd );
+        hwnd = CreateWindowEx( WS_EX_APPWINDOW, "mainwindow", title, WS_MINIMIZEBOX | WS_SYSMENU | WS_POPUP | WS_CAPTION, 300, 200, width, height, 0, 0, hInstance, 0 );
+        hCombo1 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 10, 490, 8000, hwnd, CMB1, NULL, NULL);
+        hCombo2 = CreateWindowEx( 0, "ComboBox", 0, WS_VISIBLE|WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST, 10, 40, 490, 8000, hwnd, CMB2, NULL, NULL);
+        hBtn = CreateWindowEx( 0, "Button", "Play >", WS_VISIBLE|WS_CHILD|WS_TABSTOP|BS_DEFPUSHBUTTON, 507, 10, 77, 53, hwnd, BTN1, NULL, NULL);
 
         BITMAPINFO bmi;
         memset( &bmi, 0, sizeof(bmi) );
-
-        bmi.bmiHeader.biSize = sizeof(BITMAPINFO);
+        bmi.bmiHeader.biSize = sizeof(bmi);
         bmi.bmiHeader.biWidth = width;
-        bmi.bmiHeader.biHeight =  -height;         // Order pixels from top to bottom
+        bmi.bmiHeader.biHeight =  -(height-70);         // Order pixels from top to bottom
         bmi.bmiHeader.biPlanes = 1;
         bmi.bmiHeader.biBitCount = 32;             // last byte not used, 32 bit for alignment
         bmi.bmiHeader.biCompression = BI_RGB;
 
+        hdc = GetDC( hwnd );
         hbmp = CreateDIBSection( hdc, &bmi, DIB_RGB_COLORS, &pixels, 0, 0 );
+        hdcMem = CreateCompatibleDC( hdc );
+        SelectObject( hdcMem, hbmp );
 
         ShowWindow( hwnd, SW_SHOW );
 
-        hdcMem = CreateCompatibleDC( hdc );
-        HBITMAP hbmOld = (HBITMAP) SelectObject( hdcMem, hbmp );
-
         char str[1000], txt[100000];
+        route *R;
 
         for( int i=0; i<ndevs; i++ ){
             strcpy( str, Pa_GetHostApiInfo( devs[i].info->hostApi )->name );
@@ -491,25 +468,20 @@
             SendMessage( hCombo1, CB_SETCURSEL, (WPARAM)0, (LPARAM)0 );
             SendMessage( hCombo2, CB_SETCURSEL, (WPARAM)0, (LPARAM)0 ); }
 
-        RECT rc;
-        route *R;
-        MSG msg;
-        BOOL Quit = FALSE;
-
-        while( !Quit ){
+        while( !done ){
             if( PeekMessage( &msg, NULL, 0, 0, PM_REMOVE ) ){
-                if( msg.message == WM_QUIT ){
-                    Quit = TRUE;
-                } else {
+                if( msg.message == WM_QUIT )
+                    done = TRUE;
+                else {
                     TranslateMessage( &msg );
-                    DispatchMessage( &msg );
-                }
-            } else {
-                if( nroutes ){ // ######################################################################################################
+                    DispatchMessage( &msg ); }}
+            else {
+                if( routes ){ // ######################################################################################################
+
                     R = routes[nroutes-1];
                     long now = NOW - devs[R->sd].in_t0;
 
-                    memset( pixels, 128, width*height*4 );
+                    memset( pixels, 128, width*(height-70)*4 );
                     /* -- */
                     double Q = (((double)width)/((double)vw));
                     int x1 = (int)ceil(    Q*( (double)devs[R->sd].in_t0 + (double)R->last_cursor        -(double)NOW  +(((double)vw)/2.0)   )   );
@@ -524,7 +496,7 @@
                         devs[R->sd].max_in_frameCount, devs[R->dd].max_out_frameCount, devs[R->sd].in_len, R->last_cursor, Lag, vw, nroutes, nresyncs );
                     DrawText( hdcMem, (const char*) &txt, -1, &rc, DT_CENTER );
 
-                    BitBlt( hdc, 0, 70, width, height, hdcMem, 0, 0, SRCCOPY );
+                    BitBlt( hdc, 0, 70, width, height-70, hdcMem, 0, 0, SRCCOPY );
 
                 } // ##############################################################################################################
             }
